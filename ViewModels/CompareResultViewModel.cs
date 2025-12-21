@@ -11,12 +11,13 @@ using System.Windows.Input;
 using Avalonia.Controls;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
-using Microsoft.Office.Interop.Excel;
+using Excel = Microsoft.Office.Interop.Excel; // 使用别名避免与 System 命名空间冲突
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Processing;
-using SixLabors.ImageSharp.Drawing.Processing;
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Formats.Png;
+using ImageSharp = SixLabors.ImageSharp; // 使用别名避免与 Avalonia.Controls.Image 冲突
+using DrawingPath = System.IO.Path; // 使用别名避免与 SixLabors.ImageSharp.Drawing.Path 冲突
 
 namespace PixelCompareSuite.ViewModels
 {
@@ -268,18 +269,18 @@ namespace PixelCompareSuite.ViewModels
             {
                 await Task.Run(() =>
                 {
-                    Application? excelApp = null;
-                    Workbook? workbook = null;
+                    Excel.Application? excelApp = null;
+                    Excel.Workbook? workbook = null;
                     try
                     {
-                        excelApp = new Application();
+                        excelApp = new Excel.Application();
                         excelApp.Visible = false;
                         excelApp.DisplayAlerts = false;
                         
                         workbook = excelApp.Workbooks.Open(FilePath, ReadOnly: true);
                         var sheetNames = new List<string>();
                         
-                        foreach (Worksheet sheet in workbook.Worksheets)
+                        foreach (Excel.Worksheet sheet in workbook.Worksheets)
                         {
                             sheetNames.Add(sheet.Name);
                         }
@@ -345,12 +346,12 @@ namespace PixelCompareSuite.ViewModels
 
                 await Task.Run(() =>
                 {
-                    Application? excelApp = null;
-                    Workbook? workbook = null;
-                    Worksheet? worksheet = null;
+                    Excel.Application? excelApp = null;
+                    Excel.Workbook? workbook = null;
+                    Excel.Worksheet? worksheet = null;
                     try
                     {
-                        excelApp = new Application();
+                        excelApp = new Excel.Application();
                         excelApp.Visible = false;
                         excelApp.DisplayAlerts = false;
                         
@@ -358,7 +359,7 @@ namespace PixelCompareSuite.ViewModels
                         
                         // 查找指定的工作表
                         worksheet = null;
-                        foreach (Worksheet sheet in workbook.Worksheets)
+                        foreach (Excel.Worksheet sheet in workbook.Worksheets)
                         {
                             if (sheet.Name == SelectedSheet)
                             {
@@ -380,14 +381,14 @@ namespace PixelCompareSuite.ViewModels
                         var column2Index = GetColumnIndex(Column2);
                         
                         // 获取使用的行数
-                        Range? usedRange = worksheet.UsedRange;
+                        Excel.Range? usedRange = worksheet.UsedRange;
                         int rowCount = usedRange != null ? usedRange.Rows.Count : 0;
                         var items = new List<CompareItemViewModel>();
 
                         for (int row = 2; row <= rowCount; row++) // 从第2行开始，假设第1行是标题
                         {
-                            Range? cell1 = worksheet.Cells[row, column1Index];
-                            Range? cell2 = worksheet.Cells[row, column2Index];
+                            Excel.Range? cell1 = (Excel.Range?)worksheet.Cells[row, column1Index];
+                            Excel.Range? cell2 = (Excel.Range?)worksheet.Cells[row, column2Index];
                             
                             var image1Path = cell1?.Value2?.ToString() ?? string.Empty;
                             var image2Path = cell2?.Value2?.ToString() ?? string.Empty;
@@ -503,8 +504,8 @@ namespace PixelCompareSuite.ViewModels
                     try
                     {
                         // 使用 ImageSharp 进行像素对比
-                        using var img1 = Image.Load<Rgba32>(image1Path);
-                        using var img2 = Image.Load<Rgba32>(image2Path);
+                        using var img1 = ImageSharp.Image.Load<Rgba32>(image1Path);
+                        using var img2 = ImageSharp.Image.Load<Rgba32>(image2Path);
 
                         // 检查图片尺寸是否一致
                         bool isSizeMatch = img1.Width == img2.Width && img1.Height == img2.Height;
@@ -597,51 +598,26 @@ namespace PixelCompareSuite.ViewModels
                         var minArea = 50; // 最小区域面积
                         var differenceRegions = FindDifferenceRegions(diffMap, width, height, minArea);
 
-                        // 在原图1上标记差异区域
+                        // 在原图1上标记差异区域（使用像素操作绘制红色矩形边框）
                         using var markedImage1 = img1.Clone();
-                        markedImage1.Mutate(x =>
-                        {
-                            var redPen = Pens.Solid(Color.Red, 2f);
-                            foreach (var rect in differenceRegions)
-                            {
-                                // 绘制矩形边框
-                                var topLeft = new SixLabors.ImageSharp.PointF(rect.X, rect.Y);
-                                var topRight = new SixLabors.ImageSharp.PointF(rect.X + rect.Width, rect.Y);
-                                var bottomRight = new SixLabors.ImageSharp.PointF(rect.X + rect.Width, rect.Y + rect.Height);
-                                var bottomLeft = new SixLabors.ImageSharp.PointF(rect.X, rect.Y + rect.Height);
-                                
-                                x.DrawLines(redPen, topLeft, topRight, bottomRight, bottomLeft, topLeft);
-                            }
-                        });
+                        DrawRectangles(markedImage1, differenceRegions);
 
                         // 在原图2上标记差异区域
                         using var markedImage2 = img2.Clone();
-                        markedImage2.Mutate(x =>
-                        {
-                            var redPen = Pens.Solid(Color.Red, 2f);
-                            foreach (var rect in differenceRegions)
-                            {
-                                // 绘制矩形边框
-                                var topLeft = new SixLabors.ImageSharp.PointF(rect.X, rect.Y);
-                                var topRight = new SixLabors.ImageSharp.PointF(rect.X + rect.Width, rect.Y);
-                                var bottomRight = new SixLabors.ImageSharp.PointF(rect.X + rect.Width, rect.Y + rect.Height);
-                                var bottomLeft = new SixLabors.ImageSharp.PointF(rect.X, rect.Y + rect.Height);
-                                
-                                x.DrawLines(redPen, topLeft, topRight, bottomRight, bottomLeft, topLeft);
-                            }
-                        });
+                        DrawRectangles(markedImage2, differenceRegions);
 
                         // 保存标记后的图片和差异图到临时文件
-                        var tempDir = Path.Combine(Path.GetTempPath(), "PixelCompareSuite");
+                        var tempDir = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "PixelCompareSuite");
                         Directory.CreateDirectory(tempDir);
                         var guid = Guid.NewGuid().ToString("N");
-                        var diffImagePath = Path.Combine(tempDir, $"diff_{item.RowIndex}_{guid}.png");
-                        var markedImage1Path = Path.Combine(tempDir, $"marked1_{item.RowIndex}_{guid}.png");
-                        var markedImage2Path = Path.Combine(tempDir, $"marked2_{item.RowIndex}_{guid}.png");
+                        var diffImagePath = System.IO.Path.Combine(tempDir, $"diff_{item.RowIndex}_{guid}.png");
+                        var markedImage1Path = System.IO.Path.Combine(tempDir, $"marked1_{item.RowIndex}_{guid}.png");
+                        var markedImage2Path = System.IO.Path.Combine(tempDir, $"marked2_{item.RowIndex}_{guid}.png");
                         
-                        await diffImage.SaveAsync(diffImagePath, new PngEncoder());
-                        await markedImage1.SaveAsync(markedImage1Path, new PngEncoder());
-                        await markedImage2.SaveAsync(markedImage2Path, new PngEncoder());
+                        // 使用同步方法保存图片（在 Task.Run 中）
+                        diffImage.Save(diffImagePath, new PngEncoder());
+                        markedImage1.Save(markedImage1Path, new PngEncoder());
+                        markedImage2.Save(markedImage2Path, new PngEncoder());
 
                         Dispatcher.UIThread.Post(() =>
                         {
@@ -749,6 +725,57 @@ namespace PixelCompareSuite.ViewModels
             }
 
             return new SixLabors.ImageSharp.Rectangle(minX, minY, maxX - minX + 1, maxY - minY + 1);
+        }
+
+        private void DrawRectangles(Image<Rgba32> image, List<SixLabors.ImageSharp.Rectangle> rectangles)
+        {
+            var redColor = new Rgba32(255, 0, 0, 255); // 红色
+            var lineWidth = 2;
+
+            foreach (var rect in rectangles)
+            {
+                // 绘制上边
+                for (int x = rect.X; x < rect.X + rect.Width && x < image.Width; x++)
+                {
+                    for (int w = 0; w < lineWidth && rect.Y + w < image.Height; w++)
+                    {
+                        if (x >= 0 && rect.Y + w >= 0)
+                            image[x, rect.Y + w] = redColor;
+                    }
+                }
+
+                // 绘制下边
+                int bottomY = rect.Y + rect.Height - 1;
+                for (int x = rect.X; x < rect.X + rect.Width && x < image.Width; x++)
+                {
+                    for (int w = 0; w < lineWidth && bottomY - w >= 0; w++)
+                    {
+                        if (x >= 0 && bottomY - w < image.Height)
+                            image[x, bottomY - w] = redColor;
+                    }
+                }
+
+                // 绘制左边
+                for (int y = rect.Y; y < rect.Y + rect.Height && y < image.Height; y++)
+                {
+                    for (int w = 0; w < lineWidth && rect.X + w < image.Width; w++)
+                    {
+                        if (rect.X + w >= 0 && y >= 0)
+                            image[rect.X + w, y] = redColor;
+                    }
+                }
+
+                // 绘制右边
+                int rightX = rect.X + rect.Width - 1;
+                for (int y = rect.Y; y < rect.Y + rect.Height && y < image.Height; y++)
+                {
+                    for (int w = 0; w < lineWidth && rightX - w >= 0; w++)
+                    {
+                        if (rightX - w < image.Width && y >= 0)
+                            image[rightX - w, y] = redColor;
+                    }
+                }
+            }
         }
 
         public event PropertyChangedEventHandler? PropertyChanged;
