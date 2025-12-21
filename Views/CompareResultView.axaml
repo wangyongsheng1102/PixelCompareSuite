@@ -1,0 +1,465 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:PixelCompareSuite.ViewModels"
+        xmlns:conv="clr-namespace:PixelCompareSuite.Converters"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d" d:DesignWidth="1200" d:DesignHeight="800"
+        x:Class="PixelCompareSuite.Views.CompareResultView"
+        x:DataType="vm:CompareResultViewModel"
+        Title="Excel 图片像素对比结果展示"
+        Width="1200" Height="800"
+        WindowStartupLocation="CenterScreen">
+    <Window.Resources>
+        <conv:ObjectToBoolConverter x:Key="IsNotNullConverter" Invert="False"/>
+        <conv:ObjectToBoolConverter x:Key="IsNullConverter" Invert="True"/>
+        <conv:PathToBitmapConverter x:Key="PathToBitmapConverter"/>
+    </Window.Resources>
+    <Window.DataContext>
+        <vm:CompareResultViewModel />
+    </Window.DataContext>
+    
+    <Grid RowDefinitions="Auto,*,Auto">
+        <!-- 顶部：文件路径 + Sheet/列选择 -->
+        <Border Grid.Row="0" 
+                Background="#F5F5F5" 
+                BorderBrush="#E0E0E0" 
+                BorderThickness="0,0,0,1"
+                Padding="10">
+            <Grid ColumnDefinitions="Auto,10,*,10,Auto,10,Auto,10,Auto,10,Auto,10,Auto,*">
+                <!-- 文件路径标签 -->
+                <TextBlock Grid.Column="0" 
+                          Text="文件路径:" 
+                          VerticalAlignment="Center"
+                          Margin="0,0,5,0"/>
+                
+                <!-- 文件路径显示 -->
+                <TextBox Grid.Column="2" 
+                        Text="{Binding FilePath}" 
+                        IsReadOnly="True"
+                        VerticalAlignment="Center"
+                        Watermark="请选择 Excel 文件"/>
+                
+                <!-- 选择文件按钮 -->
+                <Button Grid.Column="4" 
+                       Content="浏览..." 
+                       Command="{Binding SelectFileCommand}"
+                       Padding="10,5"
+                        VerticalAlignment="Center"/>
+                
+                <!-- Sheet 标签 -->
+                <TextBlock Grid.Column="6" 
+                          Text="Sheet:" 
+                          VerticalAlignment="Center"
+                          Margin="10,0,5,0"/>
+                
+                <!-- Sheet 下拉框 -->
+                <ComboBox Grid.Column="8" 
+                         ItemsSource="{Binding AvailableSheets}"
+                         SelectedItem="{Binding SelectedSheet}"
+                         MinWidth="150"
+                         VerticalAlignment="Center"/>
+                
+                <!-- 列1标签 -->
+                <TextBlock Grid.Column="10" 
+                          Text="列1:" 
+                          VerticalAlignment="Center"
+                          Margin="10,0,5,0"/>
+                
+                <!-- 列1输入 -->
+                <TextBox Grid.Column="12" 
+                        Text="{Binding Column1}" 
+                        Width="50"
+                        VerticalAlignment="Center"
+                        VerticalContentAlignment="Center"/>
+                
+                <!-- 列2标签 -->
+                <TextBlock Grid.Column="14" 
+                          Text="列2:" 
+                          VerticalAlignment="Center"
+                          Margin="10,0,5,0"/>
+                
+                <!-- 列2输入 -->
+                <TextBox Grid.Column="16" 
+                        Text="{Binding Column2}" 
+                        Width="50"
+                        VerticalAlignment="Center"
+                        VerticalContentAlignment="Center"/>
+                
+                <!-- 加载按钮 -->
+                <Button Grid.Column="18" 
+                       Content="加载数据" 
+                       Command="{Binding LoadDataCommand}"
+                       Padding="15,5"
+                       Margin="10,0,0,0"
+                       VerticalAlignment="Center"/>
+            </Grid>
+        </Border>
+
+        <!-- 中部：左右分栏 -->
+        <Grid Grid.Row="1" ColumnDefinitions="300,*">
+            <!-- 左侧：对比项缩略列表 -->
+            <Border Grid.Column="0" 
+                   BorderBrush="#E0E0E0" 
+                   BorderThickness="0,0,1,0"
+                   Background="White">
+                <Grid RowDefinitions="Auto,*,Auto">
+                    <!-- 列表标题 -->
+                    <Border Grid.Row="0" 
+                           Background="#F5F5F5" 
+                           Padding="10"
+                           BorderBrush="#E0E0E0" 
+                           BorderThickness="0,0,0,1">
+                        <TextBlock Text="对比项列表" 
+                                  FontWeight="Bold"
+                                  FontSize="14"/>
+                    </Border>
+                    
+                    <!-- 缩略图列表 -->
+                    <ScrollViewer Grid.Row="1" 
+                                 VerticalScrollBarVisibility="Auto">
+                        <ItemsControl ItemsSource="{Binding CurrentPageItems}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="vm:CompareItemViewModel">
+                                    <Border Margin="5" 
+                                           Padding="8"
+                                           Background="White"
+                                           BorderBrush="#E0E0E0" 
+                                           BorderThickness="1"
+                                           CornerRadius="4"
+                                           Cursor="Hand"
+                                           PointerPressed="OnItemPointerPressed">
+                                        <Border.Styles>
+                                            <Style Selector="Border:pointerover">
+                                                <Setter Property="Background" Value="#F0F0F0"/>
+                                                <Setter Property="BorderBrush" Value="#0078D4"/>
+                                            </Style>
+                                        </Border.Styles>
+                                        
+                                        <Grid RowDefinitions="Auto,Auto,Auto,Auto">
+                                            <TextBlock Grid.Row="0" 
+                                                      Text="{Binding RowIndex, StringFormat='行 {0}'}" 
+                                                      FontWeight="SemiBold"
+                                                      Margin="0,0,0,5"/>
+                                            
+                                            <TextBlock Grid.Row="1" 
+                                                      Text="{Binding Image1Path}" 
+                                                      FontSize="11"
+                                                      TextWrapping="Wrap"
+                                                      Margin="0,0,0,3"
+                                                      Foreground="#666"/>
+                                            
+                                            <TextBlock Grid.Row="2" 
+                                                      Text="{Binding Image2Path}" 
+                                                      FontSize="11"
+                                                      TextWrapping="Wrap"
+                                                      Margin="0,0,0,5"
+                                                      Foreground="#666"/>
+                                            
+                                            <Grid Grid.Row="3">
+                                                <Border Background="#E3F2FD" 
+                                                       Padding="5,2"
+                                                       CornerRadius="2"
+                                                       IsVisible="{Binding IsSizeMismatch, Converter={StaticResource IsNullConverter}}">
+                                                    <TextBlock Text="{Binding DifferencePercentageText}" 
+                                                              FontSize="10"
+                                                              Foreground="#1976D2"
+                                                              FontWeight="SemiBold"/>
+                                                </Border>
+                                                <Border Background="#FFEBEE" 
+                                                       Padding="5,2"
+                                                       CornerRadius="2"
+                                                       IsVisible="{Binding IsSizeMismatch}">
+                                                    <TextBlock Text="尺寸不一致" 
+                                                              FontSize="10"
+                                                              Foreground="#C62828"
+                                                              FontWeight="SemiBold"/>
+                                                </Border>
+                                            </Grid>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                    
+                    <!-- 分页控件 -->
+                    <Border Grid.Row="2" 
+                           Background="#F5F5F5" 
+                           Padding="10"
+                           BorderBrush="#E0E0E0" 
+                           BorderThickness="0,1,0,0">
+                        <Grid ColumnDefinitions="Auto,*,Auto,Auto">
+                            <Button Grid.Column="0" 
+                                   Content="上一页" 
+                                   Command="{Binding PreviousPageCommand}"
+                                   IsEnabled="{Binding CanGoToPreviousPage}"
+                                   Padding="10,5"
+                                   Margin="0,0,5,0"/>
+                            
+                            <TextBlock Grid.Column="2" 
+                                      VerticalAlignment="Center"
+                                      Margin="10,0">
+                                <TextBlock.Text>
+                                    <MultiBinding StringFormat="第 {0} 页 / 共 {1} 页">
+                                        <Binding Path="CurrentPage"/>
+                                        <Binding Path="TotalPages"/>
+                                    </MultiBinding>
+                                </TextBlock.Text>
+                            </TextBlock>
+                            
+                            <Button Grid.Column="3" 
+                                   Content="下一页" 
+                                   Command="{Binding NextPageCommand}"
+                                   IsEnabled="{Binding CanGoToNextPage}"
+                                   Padding="10,5"
+                                   Margin="5,0,0,0"/>
+                        </Grid>
+                    </Border>
+                </Grid>
+            </Border>
+
+            <!-- 右侧：像素差异查看区 -->
+            <Grid Grid.Column="1" 
+                 Background="White">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+                
+                <!-- 差异查看区标题 -->
+                <Border Grid.Row="0" 
+                       Background="#F5F5F5" 
+                       Padding="15"
+                       BorderBrush="#E0E0E0" 
+                       BorderThickness="0,0,0,1">
+                    <Grid RowDefinitions="Auto,Auto">
+                        <TextBlock Grid.Row="0"
+                                  FontWeight="Bold"
+                                  FontSize="14">
+                            <TextBlock.Text>
+                                <MultiBinding StringFormat="像素差异查看 - 行 {0}">
+                                    <Binding Path="SelectedItem.RowIndex" 
+                                           FallbackValue="未选择"/>
+                                </MultiBinding>
+                            </TextBlock.Text>
+                        </TextBlock>
+                        <TextBlock Grid.Row="1"
+                                  FontSize="12"
+                                  Foreground="#C62828"
+                                  FontWeight="SemiBold"
+                                  Margin="0,5,0,0"
+                                  IsVisible="{Binding SelectedItem.IsSizeMismatch}">
+                            <TextBlock.Text>
+                                <MultiBinding StringFormat="⚠ 图片尺寸不一致: {0}">
+                                    <Binding Path="SelectedItem.SizeInfo" 
+                                           FallbackValue=""/>
+                                </MultiBinding>
+                            </TextBlock.Text>
+                        </TextBlock>
+                    </Grid>
+                </Border>
+                
+                <!-- 差异图片显示区 -->
+                <Grid Grid.Row="1" 
+                     Margin="20"
+                     IsVisible="{Binding SelectedItem, Converter={StaticResource IsNotNullConverter}}">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="20"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="20"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    
+                    <!-- 图片1 -->
+                    <Border Grid.Column="0" 
+                           BorderBrush="#E0E0E0" 
+                           BorderThickness="1"
+                           Background="#FAFAFA">
+                        <Grid RowDefinitions="Auto,*">
+                            <TextBlock Grid.Row="0" 
+                                      Text="原图1" 
+                                      Padding="10"
+                                      Background="#F5F5F5"
+                                      HorizontalAlignment="Stretch"
+                                      TextAlignment="Center"/>
+                            <ScrollViewer Grid.Row="1" 
+                                         HorizontalScrollBarVisibility="Auto"
+                                         VerticalScrollBarVisibility="Auto">
+                                <Border Padding="10">
+                                    <Grid>
+                                        <Image Source="{Binding SelectedItem.Image1BitmapPath, Converter={StaticResource PathToBitmapConverter}}"
+                                               Stretch="Uniform"
+                                               HorizontalAlignment="Center"
+                                               VerticalAlignment="Center"
+                                               MaxWidth="400"
+                                               MaxHeight="400"/>
+                                        <TextBlock Text="图片加载中..."
+                                                  IsVisible="{Binding SelectedItem.IsLoading}"
+                                                  VerticalAlignment="Center"
+                                                  HorizontalAlignment="Center"
+                                                  Foreground="#999"/>
+                                        <TextBlock Text="{Binding SelectedItem.Image1Path, StringFormat='路径: {0}'}" 
+                                                  IsVisible="{Binding SelectedItem.Image1BitmapPath, Converter={StaticResource IsNullConverter}}"
+                                                  VerticalAlignment="Center"
+                                                  HorizontalAlignment="Center"
+                                                  TextWrapping="Wrap"
+                                                  TextAlignment="Center"
+                                                  Foreground="#999"
+                                                  Margin="10"/>
+                                    </Grid>
+                                </Border>
+                            </ScrollViewer>
+                        </Grid>
+                    </Border>
+                    
+                    <!-- 分隔符 -->
+                    <TextBlock Grid.Column="1" 
+                              Text="VS" 
+                              VerticalAlignment="Center"
+                              HorizontalAlignment="Center"
+                              FontWeight="Bold"
+                              Foreground="#999"/>
+                    
+                    <!-- 图片2 -->
+                    <Border Grid.Column="2" 
+                           BorderBrush="#E0E0E0" 
+                           BorderThickness="1"
+                           Background="#FAFAFA">
+                        <Grid RowDefinitions="Auto,*">
+                            <TextBlock Grid.Row="0" 
+                                      Text="原图2" 
+                                      Padding="10"
+                                      Background="#F5F5F5"
+                                      HorizontalAlignment="Stretch"
+                                      TextAlignment="Center"/>
+                            <ScrollViewer Grid.Row="1" 
+                                         HorizontalScrollBarVisibility="Auto"
+                                         VerticalScrollBarVisibility="Auto">
+                                <Border Padding="10">
+                                    <Grid>
+                                        <Image Source="{Binding SelectedItem.Image2BitmapPath, Converter={StaticResource PathToBitmapConverter}}"
+                                               Stretch="Uniform"
+                                               HorizontalAlignment="Center"
+                                               VerticalAlignment="Center"
+                                               MaxWidth="400"
+                                               MaxHeight="400"/>
+                                        <TextBlock Text="图片加载中..."
+                                                  IsVisible="{Binding SelectedItem.IsLoading}"
+                                                  VerticalAlignment="Center"
+                                                  HorizontalAlignment="Center"
+                                                  Foreground="#999"/>
+                                        <TextBlock Text="{Binding SelectedItem.Image2Path, StringFormat='路径: {0}'}" 
+                                                  IsVisible="{Binding SelectedItem.Image2BitmapPath, Converter={StaticResource IsNullConverter}}"
+                                                  VerticalAlignment="Center"
+                                                  HorizontalAlignment="Center"
+                                                  TextWrapping="Wrap"
+                                                  TextAlignment="Center"
+                                                  Foreground="#999"
+                                                  Margin="10"/>
+                                    </Grid>
+                                </Border>
+                            </ScrollViewer>
+                        </Grid>
+                    </Border>
+                    
+                    <!-- 分隔符 -->
+                    <TextBlock Grid.Column="3" 
+                              Text="→" 
+                              VerticalAlignment="Center"
+                              HorizontalAlignment="Center"
+                              FontWeight="Bold"
+                              Foreground="#999"
+                              FontSize="20"/>
+                    
+                    <!-- 差异图 -->
+                    <Border Grid.Column="4" 
+                           BorderBrush="#E0E0E0" 
+                           BorderThickness="1"
+                           Background="#FAFAFA">
+                        <Grid RowDefinitions="Auto,*">
+                            <Grid Grid.Row="0" 
+                                  Background="#F5F5F5"
+                                  Padding="10">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0"
+                                          Text="差异图" 
+                                          HorizontalAlignment="Center"
+                                          TextAlignment="Center"/>
+                                <TextBlock Grid.Column="1"
+                                          Text="{Binding SelectedItem.DifferencePercentageText, StringFormat='差异度: {0}'}" 
+                                          FontWeight="Bold"
+                                          Foreground="#D32F2F"
+                                          FontSize="14"
+                                          Margin="10,0,0,0"/>
+                            </Grid>
+                            <ScrollViewer Grid.Row="1" 
+                                         HorizontalScrollBarVisibility="Auto"
+                                         VerticalScrollBarVisibility="Auto">
+                                <Border Padding="10">
+                                    <Grid>
+                                        <Image Source="{Binding SelectedItem.DifferenceImagePath, Converter={StaticResource PathToBitmapConverter}}"
+                                               Stretch="Uniform"
+                                               HorizontalAlignment="Center"
+                                               VerticalAlignment="Center"
+                                               MaxWidth="400"
+                                               MaxHeight="400"/>
+                                        <TextBlock Text="正在生成差异图..."
+                                                  IsVisible="{Binding SelectedItem.IsLoading}"
+                                                  VerticalAlignment="Center"
+                                                  HorizontalAlignment="Center"
+                                                  Foreground="#999"/>
+                                        <TextBlock Text="点击列表项开始对比" 
+                                                  IsVisible="{Binding SelectedItem.DifferenceImagePath, Converter={StaticResource IsNullConverter}}"
+                                                  VerticalAlignment="Center"
+                                                  HorizontalAlignment="Center"
+                                                  TextWrapping="Wrap"
+                                                  TextAlignment="Center"
+                                                  Foreground="#999"
+                                                  Margin="10"/>
+                                    </Grid>
+                                </Border>
+                            </ScrollViewer>
+                        </Grid>
+                    </Border>
+                </Grid>
+                
+                <!-- 未选择提示 -->
+                <TextBlock Grid.Row="1" 
+                          Text="请从左侧列表选择一个对比项" 
+                          VerticalAlignment="Center"
+                          HorizontalAlignment="Center"
+                          FontSize="16"
+                          Foreground="#999"
+                          IsVisible="{Binding SelectedItem, Converter={StaticResource IsNullConverter}}"/>
+            </Grid>
+        </Grid>
+
+        <!-- 底部：进度条 + 当前处理状态 -->
+        <Border Grid.Row="2" 
+               Background="#F5F5F5" 
+               BorderBrush="#E0E0E0" 
+               BorderThickness="0,1,0,0"
+               Padding="15,10">
+            <Grid RowDefinitions="Auto,Auto">
+                <!-- 状态消息 -->
+                <TextBlock Grid.Row="0" 
+                          Text="{Binding StatusMessage}" 
+                          Margin="0,0,0,5"
+                          FontSize="12"/>
+                
+                <!-- 进度条 -->
+                <ProgressBar Grid.Row="1" 
+                            Value="{Binding Progress}" 
+                            Maximum="100"
+                            Height="8"
+                            IsIndeterminate="{Binding IsProcessing}"/>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>
+
