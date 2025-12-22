@@ -15,6 +15,68 @@
         <conv:ObjectToBoolConverter x:Key="IsNullConverter" Invert="True"/>
         <conv:PathToBitmapConverter x:Key="PathToBitmapConverter"/>
     </Window.Resources>
+    <Window.Styles>
+        <!-- 按钮悬停动画 -->
+        <Style Selector="Button">
+            <Style.Animations>
+                <Animation Duration="0:0:0.2">
+                    <KeyFrame Cue="0%">
+                        <Setter Property="Opacity" Value="1.0"/>
+                    </KeyFrame>
+                    <KeyFrame Cue="100%">
+                        <Setter Property="Opacity" Value="0.8"/>
+                    </KeyFrame>
+                </Animation>
+            </Style.Animations>
+        </Style>
+        <Style Selector="Button:pointerover">
+            <Setter Property="Opacity" Value="1.0"/>
+            <Setter Property="RenderTransform" Value="scale(1.05)"/>
+        </Style>
+        <Style Selector="Button">
+            <Setter Property="RenderTransformOrigin" Value="0.5,0.5"/>
+            <Setter Property="RenderTransform" Value="scale(1.0)"/>
+        </Style>
+        
+        <!-- 列表项动画 -->
+        <Style Selector="Border[Name=ListItemBorder]">
+            <Setter Property="RenderTransformOrigin" Value="0.5,0.5"/>
+            <Setter Property="RenderTransform" Value="scale(1.0)"/>
+        </Style>
+        <Style Selector="Border[Name=ListItemBorder]:pointerover">
+            <Setter Property="RenderTransform" Value="scale(1.02)"/>
+            <Setter Property="Opacity" Value="1.0"/>
+        </Style>
+        
+        <!-- 图片淡入动画 -->
+        <Style Selector="Image">
+            <Setter Property="Opacity" Value="0"/>
+            <Style.Animations>
+                <Animation Duration="0:0:0.5">
+                    <KeyFrame Cue="0%">
+                        <Setter Property="Opacity" Value="0"/>
+                    </KeyFrame>
+                    <KeyFrame Cue="100%">
+                        <Setter Property="Opacity" Value="1"/>
+                    </KeyFrame>
+                </Animation>
+            </Style.Animations>
+        </Style>
+        
+        <!-- 进度条动画 -->
+        <Style Selector="ProgressBar">
+            <Style.Animations>
+                <Animation Duration="0:0:0.3">
+                    <KeyFrame Cue="0%">
+                        <Setter Property="Opacity" Value="0.5"/>
+                    </KeyFrame>
+                    <KeyFrame Cue="100%">
+                        <Setter Property="Opacity" Value="1"/>
+                    </KeyFrame>
+                </Animation>
+            </Style.Animations>
+        </Style>
+    </Window.Styles>
     <Window.DataContext>
         <vm:CompareResultViewModel />
     </Window.DataContext>
@@ -22,10 +84,10 @@
     <Grid RowDefinitions="Auto,*,Auto">
         <!-- 顶部：文件路径 + Sheet/列选择 -->
         <Border Grid.Row="0" 
-                Background="#F5F5F5" 
-                BorderBrush="#E0E0E0" 
-                BorderThickness="0,0,0,1"
-                Padding="10">
+                Background="LinearGradientBrush StartPoint='0%,0%' EndPoint='0%,100%' #F8F9FA, #E9ECEF" 
+                BorderBrush="#DEE2E6" 
+                BorderThickness="0,0,0,2"
+                Padding="15">
             <Grid ColumnDefinitions="Auto,10,*,10,Auto,10,Auto,10,Auto,10,Auto,10,Auto,*">
                 <!-- 文件路径标签 -->
                 <TextBlock Grid.Column="0" 
@@ -45,7 +107,8 @@
                        Content="浏览..." 
                        Command="{Binding SelectFileCommand}"
                        Padding="10,5"
-                        VerticalAlignment="Center"/>
+                       VerticalAlignment="Center"
+                       Classes="accent"/>
                 
                 <!-- Sheet 标签 -->
                 <TextBlock Grid.Column="6" 
@@ -92,7 +155,9 @@
                        Command="{Binding LoadDataCommand}"
                        Padding="15,5"
                        Margin="10,0,0,0"
-                       VerticalAlignment="Center"/>
+                       VerticalAlignment="Center"
+                       Classes="accent"
+                       IsEnabled="{Binding !IsProcessing}"/>
             </Grid>
         </Border>
 
@@ -121,7 +186,8 @@
                         <ItemsControl ItemsSource="{Binding CurrentPageItems}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate DataType="vm:CompareItemViewModel">
-                                    <Border Margin="5" 
+                                    <Border Name="ListItemBorder"
+                                           Margin="5" 
                                            Padding="8"
                                            Background="White"
                                            BorderBrush="#E0E0E0" 
@@ -131,8 +197,9 @@
                                            PointerPressed="OnItemPointerPressed">
                                         <Border.Styles>
                                             <Style Selector="Border:pointerover">
-                                                <Setter Property="Background" Value="#F0F0F0"/>
-                                                <Setter Property="BorderBrush" Value="#0078D4"/>
+                                                <Setter Property="Background" Value="#E3F2FD"/>
+                                                <Setter Property="BorderBrush" Value="#1976D2"/>
+                                                <Setter Property="BorderThickness" Value="2"/>
                                             </Style>
                                         </Border.Styles>
                                         
@@ -191,15 +258,17 @@
                            BorderThickness="0,1,0,0">
                         <Grid ColumnDefinitions="Auto,*,Auto,Auto">
                             <Button Grid.Column="0" 
-                                   Content="上一页" 
+                                   Content="◀ 上一页" 
                                    Command="{Binding PreviousPageCommand}"
                                    IsEnabled="{Binding CanGoToPreviousPage}"
                                    Padding="10,5"
-                                   Margin="0,0,5,0"/>
+                                   Margin="0,0,5,0"
+                                   ToolTip.Tip="上一页"/>
                             
                             <TextBlock Grid.Column="2" 
                                       VerticalAlignment="Center"
-                                      Margin="10,0">
+                                      Margin="10,0"
+                                      FontWeight="SemiBold">
                                 <TextBlock.Text>
                                     <MultiBinding StringFormat="第 {0} 页 / 共 {1} 页">
                                         <Binding Path="CurrentPage"/>
@@ -209,11 +278,12 @@
                             </TextBlock>
                             
                             <Button Grid.Column="3" 
-                                   Content="下一页" 
+                                   Content="下一页 ▶" 
                                    Command="{Binding NextPageCommand}"
                                    IsEnabled="{Binding CanGoToNextPage}"
                                    Padding="10,5"
-                                   Margin="5,0,0,0"/>
+                                   Margin="5,0,0,0"
+                                   ToolTip.Tip="下一页"/>
                         </Grid>
                     </Border>
                 </Grid>
@@ -229,10 +299,10 @@
                 
                 <!-- 差异查看区标题 -->
                 <Border Grid.Row="0" 
-                       Background="#F5F5F5" 
+                       Background="LinearGradientBrush StartPoint='0%,0%' EndPoint='100%,0%' #E3F2FD, #BBDEFB" 
                        Padding="15"
-                       BorderBrush="#E0E0E0" 
-                       BorderThickness="0,0,0,1">
+                       BorderBrush="#90CAF9" 
+                       BorderThickness="0,0,0,2">
                     <Grid RowDefinitions="Auto,Auto">
                         <TextBlock Grid.Row="0"
                                   FontWeight="Bold"
