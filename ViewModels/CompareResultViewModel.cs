@@ -5,13 +5,12 @@ using System.ComponentModel;
 using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using System.Windows.Input;
 using Avalonia.Controls;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
-using Excel = Microsoft.Office.Interop.Excel; // 使用别名避免与 System 命名空间冲突
+using OfficeOpenXml;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Processing;
 using SixLabors.ImageSharp.PixelFormats;
@@ -269,20 +268,15 @@ namespace PixelCompareSuite.ViewModels
             {
                 await Task.Run(() =>
                 {
-                    Excel.Application? excelApp = null;
-                    Excel.Workbook? workbook = null;
-                    try
+                    ExcelPackage.LicenseContext = OfficeOpenXml.LicenseContext.NonCommercial;
+                    
+                    using (var package = new ExcelPackage(new FileInfo(FilePath)))
                     {
-                        excelApp = new Excel.Application();
-                        excelApp.Visible = false;
-                        excelApp.DisplayAlerts = false;
-                        
-                        workbook = excelApp.Workbooks.Open(FilePath, ReadOnly: true);
                         var sheetNames = new List<string>();
                         
-                        foreach (Excel.Worksheet sheet in workbook.Worksheets)
+                        foreach (var worksheet in package.Workbook.Worksheets)
                         {
-                            sheetNames.Add(sheet.Name);
+                            sheetNames.Add(worksheet.Name);
                         }
                         
                         Dispatcher.UIThread.Post(() =>
@@ -297,21 +291,6 @@ namespace PixelCompareSuite.ViewModels
                                 SelectedSheet = AvailableSheets[0];
                             }
                         });
-                    }
-                    finally
-                    {
-                        if (workbook != null)
-                        {
-                            workbook.Close(false);
-                            Marshal.ReleaseComObject(workbook);
-                        }
-                        if (excelApp != null)
-                        {
-                            excelApp.Quit();
-                            Marshal.ReleaseComObject(excelApp);
-                        }
-                        GC.Collect();
-                        GC.WaitForPendingFinalizers();
                     }
                 });
             }
@@ -346,27 +325,11 @@ namespace PixelCompareSuite.ViewModels
 
                 await Task.Run(() =>
                 {
-                    Excel.Application? excelApp = null;
-                    Excel.Workbook? workbook = null;
-                    Excel.Worksheet? worksheet = null;
-                    try
+                    ExcelPackage.LicenseContext = OfficeOpenXml.LicenseContext.NonCommercial;
+                    
+                    using (var package = new ExcelPackage(new FileInfo(FilePath)))
                     {
-                        excelApp = new Excel.Application();
-                        excelApp.Visible = false;
-                        excelApp.DisplayAlerts = false;
-                        
-                        workbook = excelApp.Workbooks.Open(FilePath, ReadOnly: true);
-                        
-                        // 查找指定的工作表
-                        worksheet = null;
-                        foreach (Excel.Worksheet sheet in workbook.Worksheets)
-                        {
-                            if (sheet.Name == SelectedSheet)
-                            {
-                                worksheet = sheet;
-                                break;
-                            }
-                        }
+                        var worksheet = package.Workbook.Worksheets[SelectedSheet];
                         
                         if (worksheet == null)
                         {
@@ -381,21 +344,16 @@ namespace PixelCompareSuite.ViewModels
                         var column2Index = GetColumnIndex(Column2);
                         
                         // 获取使用的行数
-                        Excel.Range? usedRange = worksheet.UsedRange;
-                        int rowCount = usedRange != null ? usedRange.Rows.Count : 0;
+                        int rowCount = worksheet.Dimension?.End.Row ?? 0;
                         var items = new List<CompareItemViewModel>();
 
                         for (int row = 2; row <= rowCount; row++) // 从第2行开始，假设第1行是标题
                         {
-                            Excel.Range? cell1 = (Excel.Range?)worksheet.Cells[row, column1Index];
-                            Excel.Range? cell2 = (Excel.Range?)worksheet.Cells[row, column2Index];
+                            var cell1 = worksheet.Cells[row, column1Index];
+                            var cell2 = worksheet.Cells[row, column2Index];
                             
-                            var image1Path = cell1?.Value2?.ToString() ?? string.Empty;
-                            var image2Path = cell2?.Value2?.ToString() ?? string.Empty;
-
-                            // 释放 COM 对象
-                            if (cell1 != null) Marshal.ReleaseComObject(cell1);
-                            if (cell2 != null) Marshal.ReleaseComObject(cell2);
+                            var image1Path = cell1?.Text ?? string.Empty;
+                            var image2Path = cell2?.Text ?? string.Empty;
 
                             // 如果两列都有值，则创建对比项
                             if (!string.IsNullOrWhiteSpace(image1Path) && !string.IsNullOrWhiteSpace(image2Path))
@@ -417,9 +375,6 @@ namespace PixelCompareSuite.ViewModels
                             });
                         }
 
-                        if (usedRange != null) Marshal.ReleaseComObject(usedRange);
-                        if (worksheet != null) Marshal.ReleaseComObject(worksheet);
-
                         Dispatcher.UIThread.Post(() =>
                         {
                             foreach (var item in items)
@@ -432,21 +387,6 @@ namespace PixelCompareSuite.ViewModels
                             StatusMessage = $"已加载 {TotalItems} 个对比项";
                             Progress = 50;
                         });
-                    }
-                    finally
-                    {
-                        if (workbook != null)
-                        {
-                            workbook.Close(false);
-                            Marshal.ReleaseComObject(workbook);
-                        }
-                        if (excelApp != null)
-                        {
-                            excelApp.Quit();
-                            Marshal.ReleaseComObject(excelApp);
-                        }
-                        GC.Collect();
-                        GC.WaitForPendingFinalizers();
                     }
                 });
 
