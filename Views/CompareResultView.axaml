@@ -81,17 +81,18 @@
         <vm:CompareResultViewModel />
     </Window.DataContext>
     
-    <Border Grid.Row="0"
-        BorderBrush="#DEE2E6"
-        BorderThickness="0,0,0,2"
-        Padding="15">
-
-        <Border.Background>
-            <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
-                <GradientStop Color="#F8F9FA" Offset="0"/>
-                <GradientStop Color="#E9ECEF" Offset="1"/>
-            </LinearGradientBrush>
-        </Border.Background>
+    <Grid RowDefinitions="Auto,*,Auto">
+        <!-- 顶部：文件路径 + Sheet/列选择 -->
+        <Border Grid.Row="0"
+                BorderBrush="#DEE2E6"
+                BorderThickness="0,0,0,2"
+                Padding="15">
+            <Border.Background>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                    <GradientStop Color="#F8F9FA" Offset="0"/>
+                    <GradientStop Color="#E9ECEF" Offset="1"/>
+                </LinearGradientBrush>
+            </Border.Background>
             <Grid ColumnDefinitions="Auto,10,*,10,Auto,10,Auto,10,Auto,10,Auto,10,Auto,*">
                 <!-- 文件路径标签 -->
                 <TextBlock Grid.Column="0" 
@@ -303,10 +304,15 @@
                 
                 <!-- 差异查看区标题 -->
                 <Border Grid.Row="0" 
-                       Background="LinearGradientBrush StartPoint='0%,0%' EndPoint='100%,0%' #E3F2FD, #BBDEFB" 
                        Padding="15"
                        BorderBrush="#90CAF9" 
                        BorderThickness="0,0,0,2">
+                    <Border.Background>
+                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                            <GradientStop Color="#E3F2FD" Offset="0"/>
+                            <GradientStop Color="#BBDEFB" Offset="1"/>
+                        </LinearGradientBrush>
+                    </Border.Background>
                     <Grid RowDefinitions="Auto,Auto">
                         <TextBlock Grid.Row="0"
                                   FontWeight="Bold"
@@ -532,6 +538,6 @@
                             IsIndeterminate="{Binding IsProcessing}"/>
             </Grid>
         </Border>
-    </Border>
+    </Grid>
 </Window>
 
