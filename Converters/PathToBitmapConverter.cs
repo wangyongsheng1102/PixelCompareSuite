@@ -1,8 +1,10 @@
 using System;
 using System.Globalization;
+using System.IO;
 using Avalonia.Data.Converters;
 using Avalonia.Media.Imaging;
-using Avalonia.Platform;
+using Avalonia.Threading;
+
 
 namespace PixelCompareSuite.Converters
 {
@@ -18,7 +20,15 @@ namespace PixelCompareSuite.Converters
                 {
                     if (System.IO.File.Exists(path))
                     {
-                        return new Bitmap(path);
+                        Bitmap? bitmap = null;
+                        Dispatcher.UIThread.Invoke(() =>
+                        {
+                            bitmap = new Bitmap(path);
+                        });
+                        return bitmap;
+                        // var bytes = File.ReadAllBytes(path);
+                        // var ms = new MemoryStream(bytes);
+                        // return new Avalonia.Media.Imaging.Bitmap(ms);
                     }
                 }
                 catch

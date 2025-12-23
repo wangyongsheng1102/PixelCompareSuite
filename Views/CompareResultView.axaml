@@ -7,8 +7,9 @@
         mc:Ignorable="d" d:DesignWidth="1200" d:DesignHeight="800"
         x:Class="PixelCompareSuite.Views.CompareResultView"
         x:DataType="vm:CompareResultViewModel"
-        Title="Excel 图片像素对比结果展示"
+        Title="エビデンスのキャプチャー比較ツール-Powered by Avalonia-Version-1.0"
         Width="1200" Height="800"
+        Icon="avares://PixelCompareSuite/Assets/monthly_date_time_days_calendar_november_icon_267777.ico"
         WindowStartupLocation="CenterScreen">
     <Window.Resources>
         <conv:ObjectToBoolConverter x:Key="IsNotNullConverter" Invert="False"/>
@@ -46,21 +47,6 @@
         <Style Selector="Border[Name=ListItemBorder]:pointerover">
             <Setter Property="RenderTransform" Value="scale(1.02)"/>
             <Setter Property="Opacity" Value="1.0"/>
-        </Style>
-        
-        <!-- 图片淡入动画 -->
-        <Style Selector="Image">
-            <Setter Property="Opacity" Value="0"/>
-            <Style.Animations>
-                <Animation Duration="0:0:0.5">
-                    <KeyFrame Cue="0%">
-                        <Setter Property="Opacity" Value="0"/>
-                    </KeyFrame>
-                    <KeyFrame Cue="100%">
-                        <Setter Property="Opacity" Value="1"/>
-                    </KeyFrame>
-                </Animation>
-            </Style.Animations>
         </Style>
         
         <!-- 进度条动画 -->
@@ -214,19 +200,19 @@
                                                       FontWeight="SemiBold"
                                                       Margin="0,0,0,5"/>
                                             
-                                            <TextBlock Grid.Row="1" 
-                                                      Text="{Binding Image1Path}" 
-                                                      FontSize="11"
-                                                      TextWrapping="Wrap"
-                                                      Margin="0,0,0,3"
-                                                      Foreground="#666"/>
-                                            
-                                            <TextBlock Grid.Row="2" 
-                                                      Text="{Binding Image2Path}" 
-                                                      FontSize="11"
-                                                      TextWrapping="Wrap"
-                                                      Margin="0,0,0,5"
-                                                      Foreground="#666"/>
+                                            <!-- <TextBlock Grid.Row="1"  -->
+                                            <!--           Text="{Binding Image1Path}"  -->
+                                            <!--           FontSize="11" -->
+                                            <!--           TextWrapping="Wrap" -->
+                                            <!--           Margin="0,0,0,3" -->
+                                            <!--           Foreground="#666"/> -->
+                                            <!-- -->
+                                            <!-- <TextBlock Grid.Row="2"  -->
+                                            <!--           Text="{Binding Image2Path}"  -->
+                                            <!--           FontSize="11" -->
+                                            <!--           TextWrapping="Wrap" -->
+                                            <!--           Margin="0,0,0,5" -->
+                                            <!--           Foreground="#666"/> -->
                                             
                                             <Grid Grid.Row="3">
                                                 <Border Background="#E3F2FD" 
@@ -255,42 +241,42 @@
                         </ItemsControl>
                     </ScrollViewer>
                     
-                    <!-- 分页控件 -->
-                    <Border Grid.Row="2" 
-                           Background="#F5F5F5" 
-                           Padding="10"
-                           BorderBrush="#E0E0E0" 
-                           BorderThickness="0,1,0,0">
-                        <Grid ColumnDefinitions="Auto,*,Auto,Auto">
-                            <Button Grid.Column="0" 
-                                   Content="◀ 上一页" 
-                                   Command="{Binding PreviousPageCommand}"
-                                   IsEnabled="{Binding CanGoToPreviousPage}"
-                                   Padding="10,5"
-                                   Margin="0,0,5,0"
-                                   ToolTip.Tip="上一页"/>
-                            
-                            <TextBlock Grid.Column="2" 
-                                      VerticalAlignment="Center"
-                                      Margin="10,0"
-                                      FontWeight="SemiBold">
-                                <TextBlock.Text>
-                                    <MultiBinding StringFormat="第 {0} 页 / 共 {1} 页">
-                                        <Binding Path="CurrentPage"/>
-                                        <Binding Path="TotalPages"/>
-                                    </MultiBinding>
-                                </TextBlock.Text>
-                            </TextBlock>
-                            
-                            <Button Grid.Column="3" 
-                                   Content="下一页 ▶" 
-                                   Command="{Binding NextPageCommand}"
-                                   IsEnabled="{Binding CanGoToNextPage}"
-                                   Padding="10,5"
-                                   Margin="5,0,0,0"
-                                   ToolTip.Tip="下一页"/>
-                        </Grid>
-                    </Border>
+                    <!-- ~1~ 分页控件 @1@ -->
+                    <!-- <Border Grid.Row="2"  -->
+                    <!--        Background="#F5F5F5"  -->
+                    <!--        Padding="10" -->
+                    <!--        BorderBrush="#E0E0E0"  -->
+                    <!--        BorderThickness="0,1,0,0"> -->
+                    <!--     <Grid ColumnDefinitions="Auto,*,Auto,Auto"> -->
+                    <!--         <Button Grid.Column="0"  -->
+                    <!--                Content="◀ 上一页"  -->
+                    <!--                Command="{Binding PreviousPageCommand}" -->
+                    <!--                IsEnabled="{Binding CanGoToPreviousPage}" -->
+                    <!--                Padding="10,5" -->
+                    <!--                Margin="0,0,5,0" -->
+                    <!--                ToolTip.Tip="上一页"/> -->
+                    <!--          -->
+                    <!--         <TextBlock Grid.Column="2"  -->
+                    <!--                   VerticalAlignment="Center" -->
+                    <!--                   Margin="10,0" -->
+                    <!--                   FontWeight="SemiBold"> -->
+                    <!--             <TextBlock.Text> -->
+                    <!--                 <MultiBinding StringFormat="第 {0} 页 / 共 {1} 页"> -->
+                    <!--                     <Binding Path="CurrentPage"/> -->
+                    <!--                     <Binding Path="TotalPages"/> -->
+                    <!--                 </MultiBinding> -->
+                    <!--             </TextBlock.Text> -->
+                    <!--         </TextBlock> -->
+                    <!--          -->
+                    <!--         <Button Grid.Column="3"  -->
+                    <!--                Content="下一页 ▶"  -->
+                    <!--                Command="{Binding NextPageCommand}" -->
+                    <!--                IsEnabled="{Binding CanGoToNextPage}" -->
+                    <!--                Padding="10,5" -->
+                    <!--                Margin="5,0,0,0" -->
+                    <!--                ToolTip.Tip="下一页"/> -->
+                    <!--     </Grid> -->
+                    <!-- </Border> -->
                 </Grid>
             </Border>
 
@@ -352,9 +338,9 @@
                            BorderBrush="#E0E0E0" 
                            BorderThickness="1"
                            Background="#FAFAFA">
-                        <Grid RowDefinitions="Auto,Auto">
+                        <Grid RowDefinitions="Auto,*">
                             <Border Grid.Row="0" 
-                                  Background="Black"
+                                  Background="Gray"
                                   Padding="10">
                                 <Grid ColumnDefinitions="*,*">
                                     <TextBlock Grid.Column="0"
@@ -370,12 +356,16 @@
                                 </Grid>
                             </Border>
 
-                            <Border Padding="10">
+                            <Border Grid.Row="1" Background="Black"
+                                    Padding="2">
                                 <Grid ColumnDefinitions="*,Auto">
-                                    <Image Source="{Binding SelectedItem.DifferenceImagePath, Converter={StaticResource PathToBitmapConverter}}"
+                                    <ToolTip.Tip>双击在系统图片查看器中打开</ToolTip.Tip>
+                                    <Image Source="{Binding SelectedItem.Image2BitmapPath, Converter={StaticResource PathToBitmapConverter}}"
                                            Stretch="Uniform"
-                                           MaxWidth="1200"
-                                           MaxHeight="1200"/>
+                                           MaxWidth="2000"
+                                           MaxHeight="2000"
+                                           Cursor="Hand"
+                                           PointerPressed="OnDiffImagePointerPressed"/>
                                     <TextBlock Text="正在生成差异图..."
                                               IsVisible="{Binding SelectedItem.IsLoading}"
                                               VerticalAlignment="Center"

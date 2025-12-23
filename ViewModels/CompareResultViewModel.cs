@@ -8,6 +8,8 @@ using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using System.Windows.Input;
 using Avalonia.Controls;
+using Avalonia.Input;
+using Avalonia.Media.Imaging;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using OfficeOpenXml;
@@ -16,7 +18,8 @@ using SixLabors.ImageSharp.Processing;
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Formats.Png;
 using ImageSharp = SixLabors.ImageSharp; // 使用别名避免与 Avalonia.Controls.Image 冲突
-using DrawingPath = System.IO.Path; // 使用别名避免与 SixLabors.ImageSharp.Drawing.Path 冲突
+using DrawingPath = System.IO.Path;
+using OfficeOpenXml.Drawing;
 
 namespace PixelCompareSuite.ViewModels
 {
@@ -268,7 +271,8 @@ namespace PixelCompareSuite.ViewModels
             {
                 await Task.Run(() =>
                 {
-                    ExcelPackage.LicenseContext = OfficeOpenXml.LicenseContext.NonCommercial;
+                    // ExcelPackage.LicenseContext = OfficeOpenXml.LicenseContext.NonCommercial;
+                    ExcelPackage.License.SetNonCommercialPersonal("JiMmY");
                     
                     using (var package = new ExcelPackage(new FileInfo(FilePath)))
                     {
@@ -325,7 +329,8 @@ namespace PixelCompareSuite.ViewModels
 
                 await Task.Run(() =>
                 {
-                    ExcelPackage.LicenseContext = OfficeOpenXml.LicenseContext.NonCommercial;
+                    // ExcelPackage.LicenseContext = OfficeOpenXml.LicenseContext.NonCommercial;
+                    ExcelPackage.License.SetNonCommercialPersonal("JiMmY");
                     
                     using (var package = new ExcelPackage(new FileInfo(FilePath)))
                     {
@@ -344,20 +349,24 @@ namespace PixelCompareSuite.ViewModels
                         var column2Index = GetColumnIndex(Column2);
                         
                         // 获取使用的行数
-                        int rowCount = worksheet.Dimension?.End.Row ?? 0;
+                        int rowCount = GetActualLastRow(worksheet);
                         var items = new List<CompareItemViewModel>();
-
+                        
                         for (int row = 2; row <= rowCount; row++) // 从第2行开始，假设第1行是标题
                         {
-                            var cell1 = worksheet.Cells[row, column1Index];
-                            var cell2 = worksheet.Cells[row, column2Index];
+                            // var cell1 = worksheet.Cells[row, column1Index];
+                            // var cell2 = worksheet.Cells[row, column2Index];
+                            //
+                            // var image1Path = cell1?.Text ?? string.Empty;
+                            // var image2Path = cell2?.Text ?? string.Empty;
                             
-                            var image1Path = cell1?.Text ?? string.Empty;
-                            var image2Path = cell2?.Text ?? string.Empty;
+                            var pic1 = GetPictureAtCell(worksheet, row, column1Index);
+                            var pic2 = GetPictureAtCell(worksheet, row, column2Index);
 
-                            // 如果两列都有值，则创建对比项
-                            if (!string.IsNullOrWhiteSpace(image1Path) && !string.IsNullOrWhiteSpace(image2Path))
+                            if (pic1 != null && pic2 != null)
                             {
+                                var image1Path = SavePictureToTempFile(pic1, row, "c1");
+                                var image2Path = SavePictureToTempFile(pic2, row, "c2");
                                 items.Add(new CompareItemViewModel
                                 {
                                     RowIndex = row,
@@ -365,9 +374,9 @@ namespace PixelCompareSuite.ViewModels
                                     Image2Path = image2Path.Trim()
                                 });
                             }
-
+                            
                             // 更新进度
-                            var progress = (double)(row - 1) / rowCount * 50; // 前50%用于读取数据
+                            var progress = (double)(row - 1) / rowCount * 100; // 前50%用于读取数据
                             Dispatcher.UIThread.Post(() =>
                             {
                                 Progress = progress;
@@ -385,7 +394,7 @@ namespace PixelCompareSuite.ViewModels
                             CurrentPage = 1;
                             UpdateCurrentPageItems();
                             StatusMessage = $"已加载 {TotalItems} 个对比项";
-                            Progress = 50;
+                            Progress = 100;
                         });
                     }
                 });
@@ -402,6 +411,65 @@ namespace PixelCompareSuite.ViewModels
             {
                 IsProcessing = false;
             }
+        }
+
+        private ExcelPicture? GetPictureAtCell(
+            ExcelWorksheet worksheet,
+            int rowIndex,
+            int columnIndex)
+        {
+            foreach (var drawing in worksheet.Drawings)
+            {
+                if (drawing is ExcelPicture pic)
+                {
+                    if (pic.From.Row == rowIndex -1 &&
+                        pic.From.Column == columnIndex -1)
+                    {
+                        return pic;
+                    }
+                }
+            }
+
+            return null;
+        }
+
+        private string SavePictureToTempFile(
+            ExcelPicture picture,
+            int rowIndex,
+            string suffix)
+        {
+            var tempDir = Path.Combine(
+                Path.GetTempPath(),
+                "PixelCompareSuite",
+                "excel_images"
+            );
+            
+            Directory.CreateDirectory(tempDir);
+            
+            var filePath = Path.Combine(tempDir, $"row{rowIndex}_{suffix}_{Guid.NewGuid():N}.png");
+            
+            File.WriteAllBytes(filePath,picture.Image.ImageBytes);
+
+            return filePath;
+        }
+
+        private int GetActualLastRow(
+            ExcelWorksheet worksheet)
+        {
+            int lastRowFromCells = worksheet.Dimension?.End.Row ?? 0;
+
+            int lastRowFromPictures = 0;
+
+            foreach (var d in worksheet.Drawings)
+            {
+                if (d is ExcelPicture pic)
+                {
+                    lastRowFromPictures = Math.Max(
+                        lastRowFromPictures,
+                        Math.Max(pic.From.Row, pic.To.Row)+1);
+                }
+            }
+            return Math.Max(lastRowFromCells, lastRowFromPictures);
         }
 
         private int GetColumnIndex(string columnName)
@@ -511,7 +579,7 @@ namespace PixelCompareSuite.ViewModels
                         var differencePercentage = (double)differentPixels / totalPixels * 100;
 
                         // 生成差异可视化图像（彩色）
-                        using var diffImage = img1.Clone();
+                        using var diffImage = img2.Clone();
                         diffImage.Mutate(x =>
                         {
                             for (int y = 0; y < height; y++)
@@ -535,7 +603,7 @@ namespace PixelCompareSuite.ViewModels
                         });
 
                         // 找到差异区域并绘制红框
-                        var minArea = 50; // 最小区域面积
+                        var minArea = 5; // 最小区域面积
                         var differenceRegions = FindDifferenceRegions(diffMap, width, height, minArea);
 
                         // 在原图1上标记差异区域（使用像素操作绘制红色矩形边框）
@@ -739,6 +807,22 @@ namespace PixelCompareSuite.ViewModels
         private bool _isLoading = false;
         private bool _isSizeMismatch = false;
         private string _sizeInfo = string.Empty;
+
+        private byte[] _image1Bytes = null;
+        private byte[] _image2Bytes = null;
+
+
+        public byte[] Image1Bytes
+        {
+            get => _image1Bytes;
+            set => _image1Bytes = value ?? throw new ArgumentNullException(nameof(value));
+        }
+
+        public byte[] Image2Bytes
+        {
+            get => _image2Bytes;
+            set => _image2Bytes = value ?? throw new ArgumentNullException(nameof(value));
+        }
 
         public int RowIndex
         {

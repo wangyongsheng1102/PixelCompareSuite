@@ -1,8 +1,11 @@
 using System;
+using System.Diagnostics;
+using System.IO;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
+using Avalonia.Media.Imaging;
 using PixelCompareSuite.ViewModels;
 
 namespace PixelCompareSuite.Views
@@ -40,6 +43,33 @@ namespace PixelCompareSuite.Views
                 {
                     viewModel.SelectItemCommand.Execute(item);
                 }
+            }
+        }
+        
+        
+        private void OnDiffImagePointerPressed(object? sender,PointerPressedEventArgs e)
+        {
+            if (e.ClickCount != 2)
+                return;
+
+            if (DataContext is not CompareResultViewModel vm)
+                return;
+
+            var path = vm.SelectedItem?.Image2BitmapPath;
+            if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+                return;
+
+            try
+            {
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = path,
+                    UseShellExecute = true
+                });
+            }
+            catch (Exception exception)
+            {
+                Debug.WriteLine(exception);
             }
         }
     }
