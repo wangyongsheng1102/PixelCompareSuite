@@ -149,6 +149,16 @@
                        VerticalAlignment="Center"
                        Classes="accent"
                        IsEnabled="{Binding !IsProcessing}"/>
+                
+                <!-- 导出HTML报告按钮 -->
+                <Button Grid.Column="20" 
+                       Content="导出HTML报告" 
+                       Command="{Binding ExportHtmlReportCommand}"
+                       Padding="15,5"
+                       Margin="10,0,0,0"
+                       VerticalAlignment="Center"
+                       Classes="accent"
+                       IsEnabled="{Binding !IsProcessing}"/>
             </Grid>
         </Border>
 

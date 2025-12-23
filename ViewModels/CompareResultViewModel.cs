@@ -202,6 +202,7 @@ namespace PixelCompareSuite.ViewModels
         public ICommand PreviousPageCommand { get; }
         public ICommand NextPageCommand { get; }
         public ICommand SelectItemCommand { get; }
+        public ICommand ExportHtmlReportCommand { get; }
 
         public CompareResultViewModel()
         {
@@ -228,6 +229,9 @@ namespace PixelCompareSuite.ViewModels
                     await LoadComparisonForItem(item);
                 }
             });
+            
+            ExportHtmlReportCommand = new RelayCommand(async () => await ExportHtmlReportAsync(), 
+                () => !string.IsNullOrEmpty(FilePath) && File.Exists(FilePath));
         }
 
         public void SetTopLevel(TopLevel topLevel)
@@ -603,8 +607,18 @@ namespace PixelCompareSuite.ViewModels
                         });
 
                         // 找到差异区域并绘制红框
-                        var minArea = 5; // 最小区域面积
-                        var differenceRegions = FindDifferenceRegions(diffMap, width, height, minArea);
+                        var minArea = 50; // 最小区域面积（像素数）
+                        var mergeDistance = 10; // 合并距离阈值（像素）
+                        var expandPixels = 3; // 膨胀像素数
+                        
+                        // 先进行形态学膨胀操作，连接相近的差异点
+                        var expandedDiffMap = ExpandDiffMap(diffMap, width, height, expandPixels);
+                        
+                        // 找到差异区域
+                        var differenceRegions = FindDifferenceRegions(expandedDiffMap, width, height, minArea);
+                        
+                        // 合并相近的区域
+                        differenceRegions = MergeNearbyRegions(differenceRegions, mergeDistance);
 
                         // 在原图1上标记差异区域（使用像素操作绘制红色矩形边框）
                         using var markedImage1 = img1.Clone();
@@ -735,55 +749,526 @@ namespace PixelCompareSuite.ViewModels
             return new SixLabors.ImageSharp.Rectangle(minX, minY, maxX - minX + 1, maxY - minY + 1);
         }
 
+        // 膨胀差异图，连接相近的差异点
+        private bool[,] ExpandDiffMap(bool[,] diffMap, int width, int height, int expandPixels)
+        {
+            var expanded = new bool[width, height];
+            
+            for (int y = 0; y < height; y++)
+            {
+                for (int x = 0; x < width; x++)
+                {
+                    if (diffMap[x, y])
+                    {
+                        // 在周围 expandPixels 范围内标记为差异
+                        for (int dy = -expandPixels; dy <= expandPixels; dy++)
+                        {
+                            for (int dx = -expandPixels; dx <= expandPixels; dx++)
+                            {
+                                int nx = x + dx;
+                                int ny = y + dy;
+                                if (nx >= 0 && nx < width && ny >= 0 && ny < height)
+                                {
+                                    expanded[nx, ny] = true;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            
+            return expanded;
+        }
+
+        // 合并相近的矩形区域
+        private List<SixLabors.ImageSharp.Rectangle> MergeNearbyRegions(List<SixLabors.ImageSharp.Rectangle> regions, int mergeDistance)
+        {
+            if (regions.Count <= 1) return regions;
+            
+            var merged = new List<SixLabors.ImageSharp.Rectangle>();
+            var used = new bool[regions.Count];
+            
+            for (int i = 0; i < regions.Count; i++)
+            {
+                if (used[i]) continue;
+                
+                var current = regions[i];
+                used[i] = true;
+                
+                // 查找所有与当前区域相近的区域并合并
+                bool foundNearby = true;
+                while (foundNearby)
+                {
+                    foundNearby = false;
+                    for (int j = i + 1; j < regions.Count; j++)
+                    {
+                        if (used[j]) continue;
+                        
+                        var other = regions[j];
+                        
+                        // 计算两个矩形的最小距离
+                        int distance = CalculateRectDistance(current, other);
+                        
+                        if (distance <= mergeDistance)
+                        {
+                            // 合并两个矩形
+                            int minX = Math.Min(current.X, other.X);
+                            int minY = Math.Min(current.Y, other.Y);
+                            int maxX = Math.Max(current.X + current.Width, other.X + other.Width);
+                            int maxY = Math.Max(current.Y + current.Height, other.Y + other.Height);
+                            
+                            current = new SixLabors.ImageSharp.Rectangle(minX, minY, maxX - minX, maxY - minY);
+                            used[j] = true;
+                            foundNearby = true;
+                        }
+                    }
+                }
+                
+                merged.Add(current);
+            }
+            
+            return merged;
+        }
+
+        // 计算两个矩形之间的最小距离
+        private int CalculateRectDistance(SixLabors.ImageSharp.Rectangle r1, SixLabors.ImageSharp.Rectangle r2)
+        {
+            int r1Right = r1.X + r1.Width;
+            int r1Bottom = r1.Y + r1.Height;
+            int r2Right = r2.X + r2.Width;
+            int r2Bottom = r2.Y + r2.Height;
+            
+            // 如果两个矩形重叠或相邻，返回0
+            if (r1.X <= r2Right && r2.X <= r1Right && r1.Y <= r2Bottom && r2.Y <= r1Bottom)
+                return 0;
+            
+            // 计算最小距离
+            int dx = Math.Max(0, Math.Max(r1.X - r2Right, r2.X - r1Right));
+            int dy = Math.Max(0, Math.Max(r1.Y - r2Bottom, r2.Y - r1Bottom));
+            
+            return (int)Math.Sqrt(dx * dx + dy * dy);
+        }
+
         private void DrawRectangles(Image<Rgba32> image, List<SixLabors.ImageSharp.Rectangle> rectangles)
         {
             var redColor = new Rgba32(255, 0, 0, 255); // 红色
-            var lineWidth = 2;
+            var lineWidth = 3; // 增加线宽，使红框更明显
 
             foreach (var rect in rectangles)
             {
+                // 确保矩形在图像范围内
+                int x1 = Math.Max(0, rect.X);
+                int y1 = Math.Max(0, rect.Y);
+                int x2 = Math.Min(image.Width - 1, rect.X + rect.Width - 1);
+                int y2 = Math.Min(image.Height - 1, rect.Y + rect.Height - 1);
+                
                 // 绘制上边
-                for (int x = rect.X; x < rect.X + rect.Width && x < image.Width; x++)
+                for (int x = x1; x <= x2; x++)
                 {
-                    for (int w = 0; w < lineWidth && rect.Y + w < image.Height; w++)
+                    for (int w = 0; w < lineWidth && y1 + w < image.Height; w++)
                     {
-                        if (x >= 0 && rect.Y + w >= 0)
-                            image[x, rect.Y + w] = redColor;
+                        image[x, y1 + w] = redColor;
                     }
                 }
 
                 // 绘制下边
-                int bottomY = rect.Y + rect.Height - 1;
-                for (int x = rect.X; x < rect.X + rect.Width && x < image.Width; x++)
+                for (int x = x1; x <= x2; x++)
                 {
-                    for (int w = 0; w < lineWidth && bottomY - w >= 0; w++)
+                    for (int w = 0; w < lineWidth && y2 - w >= 0; w++)
                     {
-                        if (x >= 0 && bottomY - w < image.Height)
-                            image[x, bottomY - w] = redColor;
+                        image[x, y2 - w] = redColor;
                     }
                 }
 
                 // 绘制左边
-                for (int y = rect.Y; y < rect.Y + rect.Height && y < image.Height; y++)
+                for (int y = y1; y <= y2; y++)
                 {
-                    for (int w = 0; w < lineWidth && rect.X + w < image.Width; w++)
+                    for (int w = 0; w < lineWidth && x1 + w < image.Width; w++)
                     {
-                        if (rect.X + w >= 0 && y >= 0)
-                            image[rect.X + w, y] = redColor;
+                        image[x1 + w, y] = redColor;
                     }
                 }
 
                 // 绘制右边
-                int rightX = rect.X + rect.Width - 1;
-                for (int y = rect.Y; y < rect.Y + rect.Height && y < image.Height; y++)
+                for (int y = y1; y <= y2; y++)
                 {
-                    for (int w = 0; w < lineWidth && rightX - w >= 0; w++)
+                    for (int w = 0; w < lineWidth && x2 - w >= 0; w++)
                     {
-                        if (rightX - w < image.Width && y >= 0)
-                            image[rightX - w, y] = redColor;
+                        image[x2 - w, y] = redColor;
                     }
                 }
             }
+        }
+
+        private async Task ExportHtmlReportAsync()
+        {
+            if (string.IsNullOrEmpty(FilePath) || !File.Exists(FilePath))
+            {
+                StatusMessage = "文件不存在";
+                return;
+            }
+
+            if (_topLevel == null) return;
+
+            // 选择保存位置
+            var file = await _topLevel.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+            {
+                Title = "保存 HTML 报告",
+                DefaultExtension = "html",
+                SuggestedFileName = $"比较报告_{DateTime.Now:yyyyMMdd_HHmmss}.html",
+                FileTypeChoices = new[]
+                {
+                    new FilePickerFileType("HTML 文件")
+                    {
+                        Patterns = new[] { "*.html" },
+                        MimeTypes = new[] { "text/html" }
+                    }
+                }
+            });
+
+            if (file == null || !file.Path.IsFile) return;
+
+            IsProcessing = true;
+            StatusMessage = "正在生成 HTML 报告...";
+            Progress = 0;
+
+            try
+            {
+                await Task.Run(async () =>
+                {
+                    ExcelPackage.LicenseContext = OfficeOpenXml.LicenseContext.NonCommercial;
+                    
+                    using (var package = new ExcelPackage(new FileInfo(FilePath)))
+                    {
+                        var html = new System.Text.StringBuilder();
+                        html.AppendLine("<!DOCTYPE html>");
+                        html.AppendLine("<html lang=\"zh-CN\">");
+                        html.AppendLine("<head>");
+                        html.AppendLine("<meta charset=\"UTF-8\">");
+                        html.AppendLine("<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">");
+                        html.AppendLine("<title>图片对比报告</title>");
+                        html.AppendLine("<style>");
+                        html.AppendLine(@"
+                            body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background: #f5f5f5; }
+                            .container { max-width: 1400px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+                            h1 { color: #333; border-bottom: 3px solid #1976D2; padding-bottom: 10px; }
+                            .toc { background: #f9f9f9; padding: 20px; border-radius: 5px; margin-bottom: 30px; }
+                            .toc h2 { margin-top: 0; color: #1976D2; }
+                            .toc-item { margin: 8px 0; padding: 8px; background: white; border-left: 3px solid #1976D2; }
+                            .toc-item a { text-decoration: none; color: #333; font-weight: 500; }
+                            .toc-item a:hover { color: #1976D2; }
+                            .section { margin: 40px 0; padding: 20px; border: 1px solid #e0e0e0; border-radius: 5px; }
+                            .section h3 { color: #1976D2; margin-top: 0; }
+                            .comparison-item { margin: 20px 0; padding: 15px; background: #fafafa; border-radius: 5px; }
+                            .comparison-item h4 { margin: 0 0 10px 0; color: #666; }
+                            .image-container { text-align: center; margin: 10px 0; }
+                            .image-container img { max-width: 100%; height: auto; border: 1px solid #ddd; border-radius: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+                            .diff-info { background: #fff3cd; padding: 10px; border-radius: 4px; margin: 10px 0; }
+                            .diff-info.error { background: #f8d7da; }
+                            .diff-info.success { background: #d4edda; }
+                            .back-to-top { position: fixed; bottom: 30px; right: 30px; background: #1976D2; color: white; border: none; padding: 15px 20px; border-radius: 50px; cursor: pointer; font-size: 16px; box-shadow: 0 4px 6px rgba(0,0,0,0.2); z-index: 1000; }
+                            .back-to-top:hover { background: #1565C0; }
+                        ");
+                        html.AppendLine("</style>");
+                        html.AppendLine("</head>");
+                        html.AppendLine("<body>");
+                        html.AppendLine("<div class=\"container\">");
+                        html.AppendLine("<h1>图片对比报告</h1>");
+                        html.AppendLine($"<p><strong>生成时间:</strong> {DateTime.Now:yyyy-MM-dd HH:mm:ss}</p>");
+                        html.AppendLine($"<p><strong>Excel 文件:</strong> {FilePath}</p>");
+                        
+                        // 生成目录
+                        html.AppendLine("<div class=\"toc\">");
+                        html.AppendLine("<h2>目录</h2>");
+                        
+                        int totalSheets = package.Workbook.Worksheets.Count;
+                        int processedSheets = 0;
+                        
+                        foreach (var worksheet in package.Workbook.Worksheets)
+                        {
+                            var column1Index = GetColumnIndex(Column1);
+                            var column2Index = GetColumnIndex(Column2);
+                            int rowCount = worksheet.Dimension?.End.Row ?? 0;
+                            
+                            for (int row = 2; row <= rowCount; row++)
+                            {
+                                var cell1 = worksheet.Cells[row, column1Index];
+                                var cell2 = worksheet.Cells[row, column2Index];
+                                var image1Path = cell1?.Text ?? string.Empty;
+                                var image2Path = cell2?.Text ?? string.Empty;
+                                
+                                if (!string.IsNullOrWhiteSpace(image1Path) && !string.IsNullOrWhiteSpace(image2Path))
+                                {
+                                    html.AppendLine($"<div class=\"toc-item\"><a href=\"#sheet-{worksheet.Name}-row-{row}\">{worksheet.Name} - 行 {row}</a></div>");
+                                }
+                            }
+                            
+                            processedSheets++;
+                            Dispatcher.UIThread.Post(() =>
+                            {
+                                Progress = (double)processedSheets / totalSheets * 20;
+                                StatusMessage = $"正在生成目录... {processedSheets}/{totalSheets}";
+                            });
+                        }
+                        
+                        html.AppendLine("</div>");
+                        
+                        // 生成内容
+                        processedSheets = 0;
+                        foreach (var worksheet in package.Workbook.Worksheets)
+                        {
+                            var column1Index = GetColumnIndex(Column1);
+                            var column2Index = GetColumnIndex(Column2);
+                            int rowCount = worksheet.Dimension?.End.Row ?? 0;
+                            
+                            for (int row = 2; row <= rowCount; row++)
+                            {
+                                var cell1 = worksheet.Cells[row, column1Index];
+                                var cell2 = worksheet.Cells[row, column2Index];
+                                var image1Path = cell1?.Text?.Trim() ?? string.Empty;
+                                var image2Path = cell2?.Text?.Trim() ?? string.Empty;
+                                
+                                if (string.IsNullOrWhiteSpace(image1Path) || string.IsNullOrWhiteSpace(image2Path))
+                                    continue;
+                                
+                                if (!File.Exists(image1Path) || !File.Exists(image2Path))
+                                    continue;
+                                
+                                // 处理图片对比
+                                var comparisonResult = await ProcessImageComparisonAsync(image1Path, image2Path, row);
+                                
+                                html.AppendLine($"<div class=\"section\" id=\"sheet-{worksheet.Name}-row-{row}\">");
+                                html.AppendLine($"<h3>{worksheet.Name} - 行 {row}</h3>");
+                                html.AppendLine("<div class=\"comparison-item\">");
+                                html.AppendLine($"<h4>图片路径 1: {image1Path}</h4>");
+                                html.AppendLine($"<h4>图片路径 2: {image2Path}</h4>");
+                                
+                                if (comparisonResult.IsSizeMismatch)
+                                {
+                                    html.AppendLine($"<div class=\"diff-info error\">");
+                                    html.AppendLine($"<strong>⚠ 图片尺寸不一致:</strong> {comparisonResult.SizeInfo}");
+                                    html.AppendLine("</div>");
+                                }
+                                else if (comparisonResult.HasError)
+                                {
+                                    html.AppendLine($"<div class=\"diff-info error\">");
+                                    html.AppendLine($"<strong>❌ 处理失败:</strong> {comparisonResult.ErrorMessage}");
+                                    html.AppendLine("</div>");
+                                }
+                                else
+                                {
+                                    html.AppendLine($"<div class=\"diff-info success\">");
+                                    html.AppendLine($"<strong>差异度:</strong> {comparisonResult.DifferencePercentage:F2}%");
+                                    html.AppendLine("</div>");
+                                    
+                                    if (comparisonResult.MarkedImage1Path != null && File.Exists(comparisonResult.MarkedImage1Path))
+                                    {
+                                        html.AppendLine("<div class=\"image-container\">");
+                                        html.AppendLine($"<p><strong>原图1 (带红框标记)</strong></p>");
+                                        html.AppendLine($"<img src=\"data:image/png;base64,{Convert.ToBase64String(File.ReadAllBytes(comparisonResult.MarkedImage1Path))}\" alt=\"原图1\">");
+                                        html.AppendLine("</div>");
+                                    }
+                                    
+                                    if (comparisonResult.MarkedImage2Path != null && File.Exists(comparisonResult.MarkedImage2Path))
+                                    {
+                                        html.AppendLine("<div class=\"image-container\">");
+                                        html.AppendLine($"<p><strong>原图2 (带红框标记)</strong></p>");
+                                        html.AppendLine($"<img src=\"data:image/png;base64,{Convert.ToBase64String(File.ReadAllBytes(comparisonResult.MarkedImage2Path))}\" alt=\"原图2\">");
+                                        html.AppendLine("</div>");
+                                    }
+                                    
+                                    if (comparisonResult.DiffImagePath != null && File.Exists(comparisonResult.DiffImagePath))
+                                    {
+                                        html.AppendLine("<div class=\"image-container\">");
+                                        html.AppendLine($"<p><strong>差异图</strong></p>");
+                                        html.AppendLine($"<img src=\"data:image/png;base64,{Convert.ToBase64String(File.ReadAllBytes(comparisonResult.DiffImagePath))}\" alt=\"差异图\">");
+                                        html.AppendLine("</div>");
+                                    }
+                                }
+                                
+                                html.AppendLine("</div>");
+                                html.AppendLine("</div>");
+                                
+                                // 清理临时文件
+                                try
+                                {
+                                    if (comparisonResult.MarkedImage1Path != null && File.Exists(comparisonResult.MarkedImage1Path))
+                                        File.Delete(comparisonResult.MarkedImage1Path);
+                                    if (comparisonResult.MarkedImage2Path != null && File.Exists(comparisonResult.MarkedImage2Path))
+                                        File.Delete(comparisonResult.MarkedImage2Path);
+                                    if (comparisonResult.DiffImagePath != null && File.Exists(comparisonResult.DiffImagePath))
+                                        File.Delete(comparisonResult.DiffImagePath);
+                                }
+                                catch { }
+                            }
+                            
+                            processedSheets++;
+                            Dispatcher.UIThread.Post(() =>
+                            {
+                                Progress = 20 + (double)processedSheets / totalSheets * 80;
+                                StatusMessage = $"已处理 {processedSheets}/{totalSheets} 个 Sheet...";
+                            });
+                        }
+                        
+                        html.AppendLine("</div>");
+                        html.AppendLine("<button class=\"back-to-top\" onclick=\"window.scrollTo({top: 0, behavior: 'smooth'})\">返回目录</button>");
+                        html.AppendLine("</body>");
+                        html.AppendLine("</html>");
+                        
+                        await File.WriteAllTextAsync(file.Path.LocalPath, html.ToString(), System.Text.Encoding.UTF8);
+                    }
+                });
+                
+                Dispatcher.UIThread.Post(() =>
+                {
+                    StatusMessage = "HTML 报告生成完成！";
+                    Progress = 100;
+                });
+            }
+            catch (Exception ex)
+            {
+                Dispatcher.UIThread.Post(() =>
+                {
+                    StatusMessage = $"导出失败: {ex.Message}";
+                    Progress = 0;
+                });
+            }
+            finally
+            {
+                IsProcessing = false;
+            }
+        }
+
+        private async Task<ComparisonResult> ProcessImageComparisonAsync(string image1Path, string image2Path, int rowIndex)
+        {
+            return await Task.Run(() =>
+            {
+                try
+                {
+                    using var img1 = ImageSharp.Image.Load<Rgba32>(image1Path);
+                    using var img2 = ImageSharp.Image.Load<Rgba32>(image2Path);
+                    
+                    bool isSizeMatch = img1.Width == img2.Width && img1.Height == img2.Height;
+                    string sizeInfo = $"图1: {img1.Width}x{img1.Height}, 图2: {img2.Width}x{img2.Height}";
+                    
+                    if (!isSizeMatch)
+                    {
+                        return new ComparisonResult
+                        {
+                            IsSizeMismatch = true,
+                            SizeInfo = sizeInfo
+                        };
+                    }
+                    
+                    using var img1Clone = img1.Clone();
+                    using var img2Clone = img2.Clone();
+                    
+                    img1Clone.Mutate(x => x.Grayscale());
+                    img2Clone.Mutate(x => x.Grayscale());
+                    
+                    var width = img1.Width;
+                    var height = img1.Height;
+                    var totalPixels = width * height;
+                    var threshold = 30;
+                    var differentPixels = 0;
+                    var diffMap = new bool[width, height];
+                    
+                    for (int y = 0; y < height; y++)
+                    {
+                        for (int x = 0; x < width; x++)
+                        {
+                            var pixel1 = img1Clone[x, y];
+                            var pixel2 = img2Clone[x, y];
+                            var diff = Math.Abs(pixel1.R - pixel2.R);
+                            if (diff > threshold)
+                            {
+                                differentPixels++;
+                                diffMap[x, y] = true;
+                            }
+                            else
+                            {
+                                diffMap[x, y] = false;
+                            }
+                        }
+                    }
+                    
+                    var differencePercentage = (double)differentPixels / totalPixels * 100;
+                    
+                    using var diffImage = img2.Clone();
+                    diffImage.Mutate(x =>
+                    {
+                        for (int y = 0; y < height; y++)
+                        {
+                            for (int px = 0; px < width; px++)
+                            {
+                                if (diffMap[px, y])
+                                {
+                                    var pixel1 = img1[px, y];
+                                    var pixel2 = img2[px, y];
+                                    var r = Math.Min(255, Math.Abs(pixel1.R - pixel2.R) * 3);
+                                    var g = Math.Min(255, Math.Abs(pixel1.G - pixel2.G) * 3);
+                                    var b = Math.Min(255, Math.Abs(pixel1.B - pixel2.B) * 3);
+                                    diffImage[px, y] = new Rgba32((byte)r, (byte)g, (byte)b, 255);
+                                }
+                            }
+                        }
+                    });
+                    
+                    var minArea = 50;
+                    var mergeDistance = 10;
+                    var expandPixels = 3;
+                    
+                    var expandedDiffMap = ExpandDiffMap(diffMap, width, height, expandPixels);
+                    var differenceRegions = FindDifferenceRegions(expandedDiffMap, width, height, minArea);
+                    differenceRegions = MergeNearbyRegions(differenceRegions, mergeDistance);
+                    
+                    using var markedImage1 = img1.Clone();
+                    DrawRectangles(markedImage1, differenceRegions);
+                    
+                    using var markedImage2 = img2.Clone();
+                    DrawRectangles(markedImage2, differenceRegions);
+                    
+                    var tempDir = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "PixelCompareSuite");
+                    Directory.CreateDirectory(tempDir);
+                    var guid = Guid.NewGuid().ToString("N");
+                    var diffImagePath = System.IO.Path.Combine(tempDir, $"diff_{rowIndex}_{guid}.png");
+                    var markedImage1Path = System.IO.Path.Combine(tempDir, $"marked1_{rowIndex}_{guid}.png");
+                    var markedImage2Path = System.IO.Path.Combine(tempDir, $"marked2_{rowIndex}_{guid}.png");
+                    
+                    diffImage.Save(diffImagePath, new PngEncoder());
+                    markedImage1.Save(markedImage1Path, new PngEncoder());
+                    markedImage2.Save(markedImage2Path, new PngEncoder());
+                    
+                    return new ComparisonResult
+                    {
+                        DifferencePercentage = differencePercentage,
+                        DiffImagePath = diffImagePath,
+                        MarkedImage1Path = markedImage1Path,
+                        MarkedImage2Path = markedImage2Path,
+                        SizeInfo = sizeInfo
+                    };
+                }
+                catch (Exception ex)
+                {
+                    return new ComparisonResult
+                    {
+                        HasError = true,
+                        ErrorMessage = ex.Message
+                    };
+                }
+            });
+        }
+
+        private class ComparisonResult
+        {
+            public double DifferencePercentage { get; set; }
+            public string? DiffImagePath { get; set; }
+            public string? MarkedImage1Path { get; set; }
+            public string? MarkedImage2Path { get; set; }
+            public bool IsSizeMismatch { get; set; }
+            public string SizeInfo { get; set; } = string.Empty;
+            public bool HasError { get; set; }
+            public string ErrorMessage { get; set; } = string.Empty;
         }
 
         public event PropertyChangedEventHandler? PropertyChanged;
