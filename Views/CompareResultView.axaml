@@ -79,10 +79,10 @@
                     <GradientStop Color="#E9ECEF" Offset="1"/>
                 </LinearGradientBrush>
             </Border.Background>
-            <Grid ColumnDefinitions="Auto,10,*,10,Auto,10,Auto,10,Auto,10,Auto,10,Auto,10,Auto,10,Auto,10,Auto">
+            <Grid ColumnDefinitions="Auto,10,*,10,Auto,10,Auto,10,Auto,10,Auto,10,Auto,10,Auto,10,Auto,10,Auto,Auto">
                 <!-- 文件路径标签 -->
                 <TextBlock Grid.Column="0" 
-                          Text="文件路径:" 
+                          Text="ファイルパス:" 
                           VerticalAlignment="Center"
                           Margin="0,0,5,0"/>
                 
@@ -91,11 +91,11 @@
                         Text="{Binding FilePath}" 
                         IsReadOnly="True"
                         VerticalAlignment="Center"
-                        Watermark="请选择 Excel 文件"/>
+                        Watermark="Excelファイルを選んでください"/>
                 
                 <!-- 选择文件按钮 -->
                 <Button Grid.Column="4" 
-                       Content="浏览..." 
+                       Content="..." 
                        Command="{Binding SelectFileCommand}"
                        Padding="10,5"
                        VerticalAlignment="Center"
@@ -103,7 +103,7 @@
                 
                 <!-- Sheet 标签 -->
                 <TextBlock Grid.Column="6" 
-                          Text="Sheet:" 
+                          Text="シート：" 
                           VerticalAlignment="Center"
                           Margin="10,0,5,0"/>
                 
@@ -116,7 +116,7 @@
                 
                 <!-- 列1标签 -->
                 <TextBlock Grid.Column="10" 
-                          Text="列1:" 
+                          Text="列１：" 
                           VerticalAlignment="Center"
                           Margin="10,0,5,0"/>
                 
@@ -129,7 +129,7 @@
                 
                 <!-- 列2标签 -->
                 <TextBlock Grid.Column="14" 
-                          Text="列2:" 
+                          Text="列２：" 
                           VerticalAlignment="Center"
                           Margin="10,0,5,0"/>
                 
@@ -142,7 +142,7 @@
                 
                 <!-- 加载按钮 -->
                 <Button Grid.Column="18" 
-                       Content="加载数据" 
+                       Content="データ読み込む" 
                        Command="{Binding LoadDataCommand}"
                        Padding="15,5"
                        Margin="10,0,0,0"
@@ -151,14 +151,15 @@
                        IsEnabled="{Binding !IsProcessing}"/>
                 
                 <!-- 导出HTML报告按钮 -->
-                <Button Grid.Column="20" 
-                       Content="导出HTML报告" 
+                <Button Grid.Column="19" 
+                       Content="レポート生成" 
                        Command="{Binding ExportHtmlReportCommand}"
                        Padding="15,5"
                        Margin="10,0,0,0"
                        VerticalAlignment="Center"
                        Classes="accent"
                        IsEnabled="{Binding !IsProcessing}"/>
+
             </Grid>
         </Border>
 
@@ -176,7 +177,7 @@
                            Padding="10"
                            BorderBrush="#E0E0E0" 
                            BorderThickness="0,0,0,1">
-                        <TextBlock Text="对比项列表" 
+                        <TextBlock Text="比較リスト" 
                                   FontWeight="Bold"
                                   FontSize="14"/>
                     </Border>
@@ -206,7 +207,7 @@
                                         
                                         <Grid RowDefinitions="Auto,Auto,Auto,Auto">
                                             <TextBlock Grid.Row="0" 
-                                                      Text="{Binding RowIndex, StringFormat='行 {0}'}" 
+                                                      Text="{Binding RowIndex, StringFormat='行目 {0}'}" 
                                                       FontWeight="SemiBold"
                                                       Margin="0,0,0,5"/>
                                             
@@ -238,7 +239,7 @@
                                                        Padding="5,2"
                                                        CornerRadius="2"
                                                        IsVisible="{Binding IsSizeMismatch}">
-                                                    <TextBlock Text="尺寸不一致" 
+                                                    <TextBlock Text="ピクセル不一致" 
                                                               FontSize="10"
                                                               Foreground="#C62828"
                                                               FontWeight="SemiBold"/>
@@ -314,9 +315,9 @@
                                   FontWeight="Bold"
                                   FontSize="14">
                             <TextBlock.Text>
-                                <MultiBinding StringFormat="像素差异查看 - 行 {0}">
+                                <MultiBinding StringFormat="ピクセル差異の確認 - 行目 {0}">
                                     <Binding Path="SelectedItem.RowIndex" 
-                                           FallbackValue="未选择"/>
+                                           FallbackValue="未選択"/>
                                 </MultiBinding>
                             </TextBlock.Text>
                         </TextBlock>
@@ -327,7 +328,7 @@
                                   Margin="0,5,0,0"
                                   IsVisible="{Binding SelectedItem.IsSizeMismatch}">
                             <TextBlock.Text>
-                                <MultiBinding StringFormat="⚠ 图片尺寸不一致: {0}">
+                                <MultiBinding StringFormat="⚠ 画像のピクセルが不一致: {0}">
                                     <Binding Path="SelectedItem.SizeInfo" 
                                            FallbackValue=""/>
                                 </MultiBinding>
@@ -354,11 +355,11 @@
                                   Padding="10">
                                 <Grid ColumnDefinitions="*,*">
                                     <TextBlock Grid.Column="0"
-                                              Text="差异图" 
+                                              Text="差異画像" 
                                               HorizontalAlignment="Center"
                                               TextAlignment="Center"/>
                                     <TextBlock Grid.Column="1"
-                                              Text="{Binding SelectedItem.DifferencePercentage, StringFormat='差异度: {0}'}" 
+                                              Text="{Binding SelectedItem.DifferencePercentage, StringFormat='差異度: {0}'}" 
                                               FontWeight="Bold"
                                               Foreground="#D32F2F"
                                               FontSize="14"
@@ -369,19 +370,19 @@
                             <Border Grid.Row="1" Background="Black"
                                     Padding="2">
                                 <Grid ColumnDefinitions="*,Auto">
-                                    <ToolTip.Tip>双击在系统图片查看器中打开</ToolTip.Tip>
+                                    <ToolTip.Tip>ダブルクリックしてシステムの画像ビューアで開く</ToolTip.Tip>
                                     <Image Source="{Binding SelectedItem.Image2BitmapPath, Converter={StaticResource PathToBitmapConverter}}"
                                            Stretch="Uniform"
                                            MaxWidth="2000"
                                            MaxHeight="2000"
                                            Cursor="Hand"
                                            PointerPressed="OnDiffImagePointerPressed"/>
-                                    <TextBlock Text="正在生成差异图..."
+                                    <TextBlock Text="差異画像は生成しています..."
                                               IsVisible="{Binding SelectedItem.IsLoading}"
                                               VerticalAlignment="Center"
                                               HorizontalAlignment="Center"
                                               Foreground="#999"/>
-                                    <TextBlock Text="点击列表项开始对比" 
+                                    <TextBlock Text="リスト項目をクリックすると比較が始まります" 
                                               IsVisible="{Binding SelectedItem.DifferenceImagePath, Converter={StaticResource IsNullConverter}}"
                                               VerticalAlignment="Center"
                                               HorizontalAlignment="Center"
@@ -398,7 +399,7 @@
                 
                 <!-- 未选择提示 -->
                 <TextBlock Grid.Row="1" 
-                          Text="请从左侧列表选择一个对比项" 
+                          Text="左側のリストから比較項目を一つ選択してください。" 
                           VerticalAlignment="Center"
                           HorizontalAlignment="Center"
                           FontSize="16"

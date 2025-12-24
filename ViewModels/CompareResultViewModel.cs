@@ -34,7 +34,7 @@ namespace PixelCompareSuite.ViewModels
         private int _totalItems = 0;
         private CompareItemViewModel? _selectedItem;
         private double _progress = 0;
-        private string _statusMessage = "就绪";
+        private string _statusMessage = "準備できました";
         private bool _isProcessing = false;
         private TopLevel? _topLevel;
 
@@ -230,8 +230,19 @@ namespace PixelCompareSuite.ViewModels
                 }
             });
             
-            ExportHtmlReportCommand = new RelayCommand(async () => await ExportHtmlReportAsync(), 
+            var exportCommand = new RelayCommand(async () => await ExportHtmlReportAsync(), 
                 () => !string.IsNullOrEmpty(FilePath) && File.Exists(FilePath));
+
+            ExportHtmlReportCommand = exportCommand;
+            
+            PropertyChanged += (s, e) =>
+            {
+                if (e.PropertyName == nameof(FilePath))
+                {
+                    exportCommand.RaiseCanExecuteChanged();
+                }
+            };
+            
         }
 
         public void SetTopLevel(TopLevel topLevel)
@@ -245,14 +256,14 @@ namespace PixelCompareSuite.ViewModels
 
             var files = await _topLevel.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
             {
-                Title = "选择 Excel 文件",
+                Title = "Excelファイルを選択",
                 AllowMultiple = false,
                 FileTypeFilter = new[]
                 {
                     FilePickerFileTypes.All,
-                    new FilePickerFileType("Excel 文件")
+                    new FilePickerFileType("Excelファイル")
                     {
-                        Patterns = new[] { "*.xlsx", "*.xls" },
+                        Patterns = new[] { "*.xlsx", "*.xls", "*.xlsm" },
                         MimeTypes = new[] { "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "application/vnd.ms-excel" }
                     }
                 }
@@ -304,7 +315,7 @@ namespace PixelCompareSuite.ViewModels
             }
             catch (Exception ex)
             {
-                StatusMessage = $"读取 Sheet 列表失败: {ex.Message}";
+                StatusMessage = $"Excelシートリストの取得に失敗しました: {ex.Message}";
             }
         }
 
@@ -312,18 +323,18 @@ namespace PixelCompareSuite.ViewModels
         {
             if (string.IsNullOrEmpty(FilePath) || !File.Exists(FilePath))
             {
-                StatusMessage = "文件不存在";
+                StatusMessage = "ファイルは存在していません。";
                 return;
             }
 
             if (string.IsNullOrEmpty(SelectedSheet))
             {
-                StatusMessage = "请选择 Sheet 页";
+                StatusMessage = "シートを選択してください。";
                 return;
             }
 
             IsProcessing = true;
-            StatusMessage = "正在加载数据...";
+            StatusMessage = "データを読み込み中です...";
             Progress = 0;
 
             try
@@ -344,7 +355,7 @@ namespace PixelCompareSuite.ViewModels
                         {
                             Dispatcher.UIThread.Post(() =>
                             {
-                                StatusMessage = $"Sheet '{SelectedSheet}' 不存在";
+                                StatusMessage = $"シート '{SelectedSheet}' は存在していません。";
                             });
                             return;
                         }
@@ -384,7 +395,7 @@ namespace PixelCompareSuite.ViewModels
                             Dispatcher.UIThread.Post(() =>
                             {
                                 Progress = progress;
-                                StatusMessage = $"正在读取第 {row} 行...";
+                                StatusMessage = $"第 {row} 行を読み込み中です...";
                             });
                         }
 
@@ -397,18 +408,18 @@ namespace PixelCompareSuite.ViewModels
                             TotalItems = CompareItems.Count;
                             CurrentPage = 1;
                             UpdateCurrentPageItems();
-                            StatusMessage = $"已加载 {TotalItems} 个对比项";
+                            StatusMessage = $" {TotalItems} 件読み込みました。";
                             Progress = 100;
                         });
                     }
                 });
 
-                StatusMessage = $"已加载 {TotalItems} 个对比项，点击列表项查看对比结果";
+                StatusMessage = $" {TotalItems} 件を読み込みました、一覧の項目をクリックして比較結果を表示。";
                 Progress = 100;
             }
             catch (Exception ex)
             {
-                StatusMessage = $"加载失败: {ex.Message}";
+                StatusMessage = $"読み込みことは失敗しました: {ex.Message}";
                 Progress = 0;
             }
             finally
@@ -492,7 +503,7 @@ namespace PixelCompareSuite.ViewModels
 
             try
             {
-                StatusMessage = $"正在对比行 {item.RowIndex} 的图片...";
+                StatusMessage = $" {item.RowIndex} 行目の画像を比較中です...";
                 item.IsLoading = true;
 
                 await Task.Run(() =>
@@ -508,7 +519,7 @@ namespace PixelCompareSuite.ViewModels
                             item.DifferencePercentage = -1;
                             item.IsComparisonLoaded = true;
                             item.IsLoading = false;
-                            StatusMessage = $"行 {item.RowIndex}: 图片文件不存在";
+                            StatusMessage = $"行目 {item.RowIndex}: 画像ファイルは存在していません。";
                         });
                         return;
                     }
@@ -521,7 +532,7 @@ namespace PixelCompareSuite.ViewModels
 
                         // 检查图片尺寸是否一致
                         bool isSizeMatch = img1.Width == img2.Width && img1.Height == img2.Height;
-                        string sizeInfo = $"图1: {img1.Width}x{img1.Height}, 图2: {img2.Width}x{img2.Height}";
+                        string sizeInfo = $"画像①: {img1.Width}x{img1.Height}, 画像②: {img2.Width}x{img2.Height}";
 
                         // 如果尺寸不一致，不进行对比，只标识出来
                         if (!isSizeMatch)
@@ -535,7 +546,7 @@ namespace PixelCompareSuite.ViewModels
                                 item.Image2BitmapPath = image2Path;
                                 item.IsComparisonLoaded = true;
                                 item.IsLoading = false;
-                                StatusMessage = $"行 {item.RowIndex}: 图片尺寸不一致 - {sizeInfo}";
+                                StatusMessage = $"行目 {item.RowIndex}: 画像のピクセルは不一致です - {sizeInfo}";
                             });
                             return;
                         }
@@ -652,7 +663,7 @@ namespace PixelCompareSuite.ViewModels
                             item.SizeInfo = sizeInfo;
                             item.IsComparisonLoaded = true;
                             item.IsLoading = false;
-                            StatusMessage = $"行 {item.RowIndex} 对比完成，差异度: {differencePercentage:F2}%";
+                            StatusMessage = $"行目 {item.RowIndex} 比較完了です、差異度: {differencePercentage:F2}%";
                         });
                     }
                     catch (Exception ex)
@@ -662,7 +673,7 @@ namespace PixelCompareSuite.ViewModels
                             item.DifferencePercentage = -1;
                             item.IsComparisonLoaded = true;
                             item.IsLoading = false;
-                            StatusMessage = $"行 {item.RowIndex} 对比失败: {ex.Message}";
+                            StatusMessage = $"行目 {item.RowIndex} 比較失敗しました: {ex.Message}";
                         });
                     }
                 });
@@ -670,7 +681,7 @@ namespace PixelCompareSuite.ViewModels
             catch (Exception ex)
             {
                 item.IsLoading = false;
-                StatusMessage = $"处理失败: {ex.Message}";
+                StatusMessage = $"処理失敗: {ex.Message}";
             }
         }
 
@@ -904,7 +915,7 @@ namespace PixelCompareSuite.ViewModels
         {
             if (string.IsNullOrEmpty(FilePath) || !File.Exists(FilePath))
             {
-                StatusMessage = "文件不存在";
+                StatusMessage = "ファイルは存在していません。";
                 return;
             }
 
@@ -913,12 +924,12 @@ namespace PixelCompareSuite.ViewModels
             // 选择保存位置
             var file = await _topLevel.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
             {
-                Title = "保存 HTML 报告",
+                Title = "HTMLレポート保存",
                 DefaultExtension = "html",
-                SuggestedFileName = $"比较报告_{DateTime.Now:yyyyMMdd_HHmmss}.html",
+                SuggestedFileName = $"比較レポート_{DateTime.Now:yyyyMMdd_HHmmss}.html",
                 FileTypeChoices = new[]
                 {
-                    new FilePickerFileType("HTML 文件")
+                    new FilePickerFileType("HTML ファイル")
                     {
                         Patterns = new[] { "*.html" },
                         MimeTypes = new[] { "text/html" }
@@ -929,14 +940,15 @@ namespace PixelCompareSuite.ViewModels
             if (file == null || !file.Path.IsFile) return;
 
             IsProcessing = true;
-            StatusMessage = "正在生成 HTML 报告...";
+            StatusMessage = "HTMLレポートは生成しています...";
             Progress = 0;
 
             try
             {
                 await Task.Run(async () =>
                 {
-                    ExcelPackage.LicenseContext = OfficeOpenXml.LicenseContext.NonCommercial;
+                    // ExcelPackage.LicenseContext = OfficeOpenXml.LicenseContext.NonCommercial;
+                    ExcelPackage.License.SetNonCommercialPersonal("JiMmY");
                     
                     using (var package = new ExcelPackage(new FileInfo(FilePath)))
                     {
@@ -946,7 +958,7 @@ namespace PixelCompareSuite.ViewModels
                         html.AppendLine("<head>");
                         html.AppendLine("<meta charset=\"UTF-8\">");
                         html.AppendLine("<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">");
-                        html.AppendLine("<title>图片对比报告</title>");
+                        html.AppendLine("<title>エビデンス比較レポート</title>");
                         html.AppendLine("<style>");
                         html.AppendLine(@"
                             body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background: #f5f5f5; }
@@ -973,13 +985,13 @@ namespace PixelCompareSuite.ViewModels
                         html.AppendLine("</head>");
                         html.AppendLine("<body>");
                         html.AppendLine("<div class=\"container\">");
-                        html.AppendLine("<h1>图片对比报告</h1>");
-                        html.AppendLine($"<p><strong>生成时间:</strong> {DateTime.Now:yyyy-MM-dd HH:mm:ss}</p>");
-                        html.AppendLine($"<p><strong>Excel 文件:</strong> {FilePath}</p>");
+                        html.AppendLine("<h1>画像比較レポート</h1>");
+                        html.AppendLine($"<p><strong>生成時間:</strong> {DateTime.Now:yyyy-MM-dd HH:mm:ss}</p>");
+                        html.AppendLine($"<p><strong>Excel ファイル:</strong> {FilePath}</p>");
                         
                         // 生成目录
                         html.AppendLine("<div class=\"toc\">");
-                        html.AppendLine("<h2>目录</h2>");
+                        html.AppendLine("<h2>目次</h2>");
                         
                         int totalSheets = package.Workbook.Worksheets.Count;
                         int processedSheets = 0;
@@ -988,18 +1000,18 @@ namespace PixelCompareSuite.ViewModels
                         {
                             var column1Index = GetColumnIndex(Column1);
                             var column2Index = GetColumnIndex(Column2);
-                            int rowCount = worksheet.Dimension?.End.Row ?? 0;
-                            
-                            for (int row = 2; row <= rowCount; row++)
+                        
+                            // 获取使用的行数
+                            int rowCount = GetActualLastRow(worksheet);
+
+                            for (int row = 2; row <= rowCount; row++) // 从第2行开始，假设第1行是标题
                             {
-                                var cell1 = worksheet.Cells[row, column1Index];
-                                var cell2 = worksheet.Cells[row, column2Index];
-                                var image1Path = cell1?.Text ?? string.Empty;
-                                var image2Path = cell2?.Text ?? string.Empty;
-                                
-                                if (!string.IsNullOrWhiteSpace(image1Path) && !string.IsNullOrWhiteSpace(image2Path))
+                                var pic1 = GetPictureAtCell(worksheet, row, column1Index);
+                                var pic2 = GetPictureAtCell(worksheet, row, column2Index);
+
+                                if (pic1 != null && pic2 != null)
                                 {
-                                    html.AppendLine($"<div class=\"toc-item\"><a href=\"#sheet-{worksheet.Name}-row-{row}\">{worksheet.Name} - 行 {row}</a></div>");
+                                    html.AppendLine($"<div class=\"toc-item\"><a href=\"#sheet-{worksheet.Name}-row-{row}\">シート「{worksheet.Name}」 ー 行目「{row}」</a></div>");
                                 }
                             }
                             
@@ -1007,7 +1019,7 @@ namespace PixelCompareSuite.ViewModels
                             Dispatcher.UIThread.Post(() =>
                             {
                                 Progress = (double)processedSheets / totalSheets * 20;
-                                StatusMessage = $"正在生成目录... {processedSheets}/{totalSheets}";
+                                StatusMessage = $"目次は生成しています... {processedSheets}/{totalSheets}";
                             });
                         }
                         
@@ -1019,52 +1031,56 @@ namespace PixelCompareSuite.ViewModels
                         {
                             var column1Index = GetColumnIndex(Column1);
                             var column2Index = GetColumnIndex(Column2);
-                            int rowCount = worksheet.Dimension?.End.Row ?? 0;
+                            // 获取使用的行数
+                            int rowCount = GetActualLastRow(worksheet);
                             
                             for (int row = 2; row <= rowCount; row++)
                             {
-                                var cell1 = worksheet.Cells[row, column1Index];
-                                var cell2 = worksheet.Cells[row, column2Index];
-                                var image1Path = cell1?.Text?.Trim() ?? string.Empty;
-                                var image2Path = cell2?.Text?.Trim() ?? string.Empty;
-                                
-                                if (string.IsNullOrWhiteSpace(image1Path) || string.IsNullOrWhiteSpace(image2Path))
+                                var pic1 = GetPictureAtCell(worksheet, row, column1Index);
+                                var pic2 = GetPictureAtCell(worksheet, row, column2Index);
+
+                                var image1Path = string.Empty;
+                                var image2Path = string.Empty;
+                                if (pic1 != null && pic2 != null)
+                                {
+                                    image1Path = SavePictureToTempFile(pic1, row, "c1");
+                                    image2Path = SavePictureToTempFile(pic2, row, "c2");
+                                }
+
+                                if (image1Path == string.Empty || image2Path == string.Empty)
                                     continue;
-                                
-                                if (!File.Exists(image1Path) || !File.Exists(image2Path))
-                                    continue;
-                                
+
                                 // 处理图片对比
                                 var comparisonResult = await ProcessImageComparisonAsync(image1Path, image2Path, row);
                                 
                                 html.AppendLine($"<div class=\"section\" id=\"sheet-{worksheet.Name}-row-{row}\">");
-                                html.AppendLine($"<h3>{worksheet.Name} - 行 {row}</h3>");
+                                html.AppendLine($"<h3>シート「{worksheet.Name}」 ー 行目「{row}」</h3>");
                                 html.AppendLine("<div class=\"comparison-item\">");
-                                html.AppendLine($"<h4>图片路径 1: {image1Path}</h4>");
-                                html.AppendLine($"<h4>图片路径 2: {image2Path}</h4>");
+                                html.AppendLine($"<h4>画像パス①: {image1Path}</h4>");
+                                html.AppendLine($"<h4>画像パス②: {image2Path}</h4>");
                                 
                                 if (comparisonResult.IsSizeMismatch)
                                 {
                                     html.AppendLine($"<div class=\"diff-info error\">");
-                                    html.AppendLine($"<strong>⚠ 图片尺寸不一致:</strong> {comparisonResult.SizeInfo}");
+                                    html.AppendLine($"<strong>⚠ 画像のピクセルが不一致:</strong> {comparisonResult.SizeInfo}");
                                     html.AppendLine("</div>");
                                 }
                                 else if (comparisonResult.HasError)
                                 {
                                     html.AppendLine($"<div class=\"diff-info error\">");
-                                    html.AppendLine($"<strong>❌ 处理失败:</strong> {comparisonResult.ErrorMessage}");
+                                    html.AppendLine($"<strong>❌ 処理失敗:</strong> {comparisonResult.ErrorMessage}");
                                     html.AppendLine("</div>");
                                 }
                                 else
                                 {
                                     html.AppendLine($"<div class=\"diff-info success\">");
-                                    html.AppendLine($"<strong>差异度:</strong> {comparisonResult.DifferencePercentage:F2}%");
+                                    html.AppendLine($"<strong>差異度:</strong> {comparisonResult.DifferencePercentage:F2}%");
                                     html.AppendLine("</div>");
                                     
                                     if (comparisonResult.MarkedImage1Path != null && File.Exists(comparisonResult.MarkedImage1Path))
                                     {
                                         html.AppendLine("<div class=\"image-container\">");
-                                        html.AppendLine($"<p><strong>原图1 (带红框标记)</strong></p>");
+                                        html.AppendLine($"<p><strong>元画像① 「赤い枠でマーク」</strong></p>");
                                         html.AppendLine($"<img src=\"data:image/png;base64,{Convert.ToBase64String(File.ReadAllBytes(comparisonResult.MarkedImage1Path))}\" alt=\"原图1\">");
                                         html.AppendLine("</div>");
                                     }
@@ -1072,7 +1088,7 @@ namespace PixelCompareSuite.ViewModels
                                     if (comparisonResult.MarkedImage2Path != null && File.Exists(comparisonResult.MarkedImage2Path))
                                     {
                                         html.AppendLine("<div class=\"image-container\">");
-                                        html.AppendLine($"<p><strong>原图2 (带红框标记)</strong></p>");
+                                        html.AppendLine($"<p><strong>元画像② 「赤い枠でマーク」</strong></p>");
                                         html.AppendLine($"<img src=\"data:image/png;base64,{Convert.ToBase64String(File.ReadAllBytes(comparisonResult.MarkedImage2Path))}\" alt=\"原图2\">");
                                         html.AppendLine("</div>");
                                     }
@@ -1080,7 +1096,7 @@ namespace PixelCompareSuite.ViewModels
                                     if (comparisonResult.DiffImagePath != null && File.Exists(comparisonResult.DiffImagePath))
                                     {
                                         html.AppendLine("<div class=\"image-container\">");
-                                        html.AppendLine($"<p><strong>差异图</strong></p>");
+                                        html.AppendLine($"<p><strong>差異画像</strong></p>");
                                         html.AppendLine($"<img src=\"data:image/png;base64,{Convert.ToBase64String(File.ReadAllBytes(comparisonResult.DiffImagePath))}\" alt=\"差异图\">");
                                         html.AppendLine("</div>");
                                     }
@@ -1106,12 +1122,12 @@ namespace PixelCompareSuite.ViewModels
                             Dispatcher.UIThread.Post(() =>
                             {
                                 Progress = 20 + (double)processedSheets / totalSheets * 80;
-                                StatusMessage = $"已处理 {processedSheets}/{totalSheets} 个 Sheet...";
+                                StatusMessage = $" シート {processedSheets}/{totalSheets} 処理中...";
                             });
                         }
                         
                         html.AppendLine("</div>");
-                        html.AppendLine("<button class=\"back-to-top\" onclick=\"window.scrollTo({top: 0, behavior: 'smooth'})\">返回目录</button>");
+                        html.AppendLine("<button class=\"back-to-top\" onclick=\"window.scrollTo({top: 0, behavior: 'smooth'})\">目次に戻る</button>");
                         html.AppendLine("</body>");
                         html.AppendLine("</html>");
                         
@@ -1121,7 +1137,7 @@ namespace PixelCompareSuite.ViewModels
                 
                 Dispatcher.UIThread.Post(() =>
                 {
-                    StatusMessage = "HTML 报告生成完成！";
+                    StatusMessage = "HTMLレポートは生成完了！";
                     Progress = 100;
                 });
             }
@@ -1129,7 +1145,7 @@ namespace PixelCompareSuite.ViewModels
             {
                 Dispatcher.UIThread.Post(() =>
                 {
-                    StatusMessage = $"导出失败: {ex.Message}";
+                    StatusMessage = $"生成失敗: {ex.Message}";
                     Progress = 0;
                 });
             }
@@ -1149,7 +1165,7 @@ namespace PixelCompareSuite.ViewModels
                     using var img2 = ImageSharp.Image.Load<Rgba32>(image2Path);
                     
                     bool isSizeMatch = img1.Width == img2.Width && img1.Height == img2.Height;
-                    string sizeInfo = $"图1: {img1.Width}x{img1.Height}, 图2: {img2.Width}x{img2.Height}";
+                    string sizeInfo = $"画像①: {img1.Width}x{img1.Height}, 画像②: {img2.Width}x{img2.Height}";
                     
                     if (!isSizeMatch)
                     {
@@ -1393,9 +1409,9 @@ namespace PixelCompareSuite.ViewModels
             get
             {
                 if (IsSizeMismatch)
-                    return "尺寸不一致";
+                    return "ピクセルが不一致";
                 if (DifferencePercentage < 0)
-                    return "对比失败";
+                    return "比較失敗";
                 return $"{DifferencePercentage:F2}%";
             }
         }
