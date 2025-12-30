@@ -5,6 +5,7 @@ using System.ComponentModel;
 using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Input;
 using Avalonia.Controls;
@@ -17,8 +18,17 @@ using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Processing;
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Formats.Png;
+using SixLabors.Fonts;
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.Drawing;
+using SixLabors.ImageSharp.Drawing.Processing;
+using SixLabors.ImageSharp.PixelFormats;
+using SixLabors.ImageSharp.Processing;
 using ImageSharp = SixLabors.ImageSharp; // 使用别名避免与 Avalonia.Controls.Image 冲突
-using DrawingPath = System.IO.Path;
+// using DrawingPath = System.IO.Path;
+using IOPath = System.IO.Path;
+using DrawingPath = SixLabors.ImageSharp.Drawing.Path;
+
 using OfficeOpenXml.Drawing;
 
 namespace PixelCompareSuite.ViewModels
@@ -295,7 +305,29 @@ namespace PixelCompareSuite.ViewModels
                         
                         foreach (var worksheet in package.Workbook.Worksheets)
                         {
-                            sheetNames.Add(worksheet.Name);
+                            var column1Index = GetColumnIndex(Column1);
+                            var column2Index = GetColumnIndex(Column2);
+                            
+                            // 获取使用的行数
+                            int rowCount = GetActualLastRow(worksheet);
+                            bool sheetFlag = false;
+                            
+                            for (int row = 2; row <= rowCount; row++) // 从第2行开始，假设第1行是标题
+                            {
+                                
+                                var pic1 = GetPictureAtCell(worksheet, row, column1Index);
+                                var pic2 = GetPictureAtCell(worksheet, row, column2Index);
+
+                                if (pic1 != null && pic2 != null)
+                                {
+                                    sheetFlag = true;
+                                    break;
+                                }
+
+                            }
+                            
+                            if (sheetFlag) sheetNames.Add(worksheet.Name);
+                            
                         }
                         
                         Dispatcher.UIThread.Post(() =>
@@ -341,7 +373,9 @@ namespace PixelCompareSuite.ViewModels
             {
                 CompareItems.Clear();
                 SelectedItem = null;
-
+                
+                var items = new List<CompareItemViewModel>();
+                
                 await Task.Run(() =>
                 {
                     // ExcelPackage.LicenseContext = OfficeOpenXml.LicenseContext.NonCommercial;
@@ -365,7 +399,7 @@ namespace PixelCompareSuite.ViewModels
                         
                         // 获取使用的行数
                         int rowCount = GetActualLastRow(worksheet);
-                        var items = new List<CompareItemViewModel>();
+                        // var items = new List<CompareItemViewModel>();
                         
                         for (int row = 2; row <= rowCount; row++) // 从第2行开始，假设第1行是标题
                         {
@@ -411,11 +445,16 @@ namespace PixelCompareSuite.ViewModels
                             StatusMessage = $" {TotalItems} 件読み込みました。";
                             Progress = 100;
                         });
+                        
+                        
                     }
                 });
 
                 StatusMessage = $" {TotalItems} 件を読み込みました、一覧の項目をクリックして比較結果を表示。";
                 Progress = 100;
+                
+                await LoadComparisonForAllItems(items);
+                
             }
             catch (Exception ex)
             {
@@ -426,6 +465,51 @@ namespace PixelCompareSuite.ViewModels
             {
                 IsProcessing = false;
             }
+        }
+        
+        private async Task LoadComparisonForAllItems(IEnumerable<CompareItemViewModel> items)
+        {
+            if (items == null || !items.Any())
+                return;
+    
+            // 获取总数量用于进度报告
+            var itemList = items.ToList();
+            int total = itemList.Count;
+            int completed = 0;
+    
+            // 控制并发数
+            var semaphore = new SemaphoreSlim(5); // 最多同时处理5个
+            var tasks = new List<Task>();
+    
+            foreach (var item in itemList)
+            {
+                await semaphore.WaitAsync();
+        
+                var task = Task.Run(async () =>
+                {
+                    try
+                    {
+                        await LoadComparisonForItem(item);
+                    }
+                    finally
+                    {
+                        semaphore.Release();
+                
+                        // 更新进度
+                        completed++;
+                        await Dispatcher.UIThread.InvokeAsync(() =>
+                        {
+                            Progress = 100 * completed / total;
+                            StatusMessage = $"比較処理中... {completed}/{total}";
+                        });
+                    }
+                });
+        
+                tasks.Add(task);
+            }
+    
+            await Task.WhenAll(tasks);
+            StatusMessage = "すべての比較データを読み込み完了しました";
         }
 
         private ExcelPicture? GetPictureAtCell(
@@ -453,15 +537,15 @@ namespace PixelCompareSuite.ViewModels
             int rowIndex,
             string suffix)
         {
-            var tempDir = Path.Combine(
-                Path.GetTempPath(),
+            var tempDir = IOPath.Combine(
+                IOPath.GetTempPath(),
                 "PixelCompareSuite",
                 "excel_images"
             );
             
             Directory.CreateDirectory(tempDir);
             
-            var filePath = Path.Combine(tempDir, $"row{rowIndex}_{suffix}_{Guid.NewGuid():N}.png");
+            var filePath = IOPath.Combine(tempDir, $"row{rowIndex}_{suffix}_{Guid.NewGuid():N}.png");
             
             File.WriteAllBytes(filePath,picture.Image.ImageBytes);
 
@@ -633,11 +717,13 @@ namespace PixelCompareSuite.ViewModels
 
                         // 在原图1上标记差异区域（使用像素操作绘制红色矩形边框）
                         using var markedImage1 = img1.Clone();
-                        DrawRectangles(markedImage1, differenceRegions);
+                        // DrawRectangles(markedImage1, differenceRegions);
+                        DrawRectanglesWithIndexOutside_NoMeasure(markedImage1, differenceRegions);
 
                         // 在原图2上标记差异区域
                         using var markedImage2 = img2.Clone();
-                        DrawRectangles(markedImage2, differenceRegions);
+                        // DrawRectangles(markedImage2, differenceRegions);
+                        DrawRectanglesWithIndexOutside_NoMeasure(markedImage2, differenceRegions);
 
                         // 保存标记后的图片和差异图到临时文件
                         var tempDir = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "PixelCompareSuite");
@@ -654,6 +740,7 @@ namespace PixelCompareSuite.ViewModels
 
                         Dispatcher.UIThread.Post(() =>
                         {
+                            item.DiffCount = differenceRegions.Count;
                             item.DifferencePercentage = differencePercentage;
                             item.DifferenceImagePath = diffImagePath;
                             // 使用标记后的图片
@@ -663,7 +750,7 @@ namespace PixelCompareSuite.ViewModels
                             item.SizeInfo = sizeInfo;
                             item.IsComparisonLoaded = true;
                             item.IsLoading = false;
-                            StatusMessage = $"行目 {item.RowIndex} 比較完了です、差異度: {differencePercentage:F2}%";
+                            StatusMessage = $"行目 {item.RowIndex} 比較完了です、差異度: {differencePercentage:F2}%、差異数：{differenceRegions.Count}";
                         });
                     }
                     catch (Exception ex)
@@ -863,7 +950,7 @@ namespace PixelCompareSuite.ViewModels
         private void DrawRectangles(Image<Rgba32> image, List<SixLabors.ImageSharp.Rectangle> rectangles)
         {
             var redColor = new Rgba32(255, 0, 0, 255); // 红色
-            var lineWidth = 3; // 增加线宽，使红框更明显
+            var lineWidth = 2; // 增加线宽，使红框更明显
 
             foreach (var rect in rectangles)
             {
@@ -909,6 +996,94 @@ namespace PixelCompareSuite.ViewModels
                     }
                 }
             }
+        }
+        
+        private void DrawRectanglesWithIndexOutside_NoMeasure(
+            Image<Rgba32> image,
+            List<SixLabors.ImageSharp.Rectangle> rectangles)
+        {
+            var rectColor = Color.Red;
+            var textColor = Color.DarkSlateGray;
+            int lineWidth = 2;
+
+            // 固定字体（不依赖测量）
+            float fontSize = 25f;
+            Font font = SystemFonts.CreateFont("Arial", fontSize, FontStyle.Bold);
+
+            image.Mutate(ctx =>
+            {
+                for (int i = 0; i < rectangles.Count; i++)
+                {
+                    var rect = rectangles[i];
+
+                    // 安全裁剪
+                    int x = Math.Max(0, rect.X);
+                    int y = Math.Max(0, rect.Y);
+                    int w = Math.Min(rect.Width, image.Width - x);
+                    int h = Math.Min(rect.Height, image.Height - y);
+
+                    var safeRect = new Rectangle(x, y, w, h);
+
+                    // ===== 1. 画矩形 =====
+                    ctx.Draw(rectColor, lineWidth, safeRect);
+
+                    // ===== 2. 编号 =====
+                    string label = (i + 1).ToString();
+
+                    PointF textPos = CalcOutsideTextPosition_NoMeasure(
+                        safeRect,
+                        label,
+                        fontSize,
+                        image.Width,
+                        image.Height
+                    );
+
+                    ctx.DrawText(label, font, textColor, textPos);
+                }
+            });
+        }
+        
+        private PointF CalcOutsideTextPosition_NoMeasure(
+            Rectangle rect,
+            string text,
+            float fontSize,
+            int imageWidth,
+            int imageHeight)
+        {
+            const float padding = 4f;
+
+            // 经验估算（对纯数字非常准）
+            float approxCharWidth = fontSize * 0.6f;
+            float textWidth = approxCharWidth * text.Length;
+            float textHeight = fontSize;
+
+            // 默认：左上外侧
+            float x = rect.Left - textWidth - padding;
+            float y = rect.Top;
+
+            // 左侧放不下 → 放右侧
+            if (x < 0)
+            {
+                x = rect.Right + padding;
+            }
+
+            // 上下越界保护
+            if (y < 0)
+            {
+                y = 0;
+            }
+            if (y + textHeight > imageHeight)
+            {
+                y = imageHeight - textHeight;
+            }
+
+            // 右侧兜底
+            if (x + textWidth > imageWidth)
+            {
+                x = Math.Max(0, rect.Left - textWidth - padding);
+            }
+
+            return new PointF(x, y);
         }
 
         private async Task ExportHtmlReportAsync()
@@ -1011,7 +1186,7 @@ namespace PixelCompareSuite.ViewModels
 
                                 if (pic1 != null && pic2 != null)
                                 {
-                                    html.AppendLine($"<div class=\"toc-item\"><a href=\"#sheet-{worksheet.Name}-row-{row}\">シート「{worksheet.Name}」 ー 行目「{row}」</a></div>");
+                                    html.AppendLine($"<div class=\"toc-item\"><a href=\"#sheet-{worksheet.Name}-row-{row}\">シート名「　{worksheet.Name}　」　：　行目「　{row}　」</a></div>");
                                 }
                             }
                             
@@ -1054,7 +1229,7 @@ namespace PixelCompareSuite.ViewModels
                                 var comparisonResult = await ProcessImageComparisonAsync(image1Path, image2Path, row);
                                 
                                 html.AppendLine($"<div class=\"section\" id=\"sheet-{worksheet.Name}-row-{row}\">");
-                                html.AppendLine($"<h3>シート「{worksheet.Name}」 ー 行目「{row}」</h3>");
+                                html.AppendLine($"<h3>シート名「　{worksheet.Name}　」　：　行目「　{row}　」</h3>");
                                 html.AppendLine("<div class=\"comparison-item\">");
                                 html.AppendLine($"<h4>画像パス①: {image1Path}</h4>");
                                 html.AppendLine($"<h4>画像パス②: {image2Path}</h4>");
@@ -1074,7 +1249,7 @@ namespace PixelCompareSuite.ViewModels
                                 else
                                 {
                                     html.AppendLine($"<div class=\"diff-info success\">");
-                                    html.AppendLine($"<strong>差異度:</strong> {comparisonResult.DifferencePercentage:F2}%");
+                                    html.AppendLine($"<strong>差異数:</strong> {comparisonResult.DiffCount}");
                                     html.AppendLine("</div>");
                                     
                                     if (comparisonResult.MarkedImage1Path != null && File.Exists(comparisonResult.MarkedImage1Path))
@@ -1093,13 +1268,13 @@ namespace PixelCompareSuite.ViewModels
                                         html.AppendLine("</div>");
                                     }
                                     
-                                    if (comparisonResult.DiffImagePath != null && File.Exists(comparisonResult.DiffImagePath))
-                                    {
-                                        html.AppendLine("<div class=\"image-container\">");
-                                        html.AppendLine($"<p><strong>差異画像</strong></p>");
-                                        html.AppendLine($"<img src=\"data:image/png;base64,{Convert.ToBase64String(File.ReadAllBytes(comparisonResult.DiffImagePath))}\" alt=\"差异图\">");
-                                        html.AppendLine("</div>");
-                                    }
+                                    // if (comparisonResult.DiffImagePath != null && File.Exists(comparisonResult.DiffImagePath))
+                                    // {
+                                    //     html.AppendLine("<div class=\"image-container\">");
+                                    //     html.AppendLine($"<p><strong>差異画像</strong></p>");
+                                    //     html.AppendLine($"<img src=\"data:image/png;base64,{Convert.ToBase64String(File.ReadAllBytes(comparisonResult.DiffImagePath))}\" alt=\"差异图\">");
+                                    //     html.AppendLine("</div>");
+                                    // }
                                 }
                                 
                                 html.AppendLine("</div>");
@@ -1239,10 +1414,12 @@ namespace PixelCompareSuite.ViewModels
                     differenceRegions = MergeNearbyRegions(differenceRegions, mergeDistance);
                     
                     using var markedImage1 = img1.Clone();
-                    DrawRectangles(markedImage1, differenceRegions);
+                    // DrawRectangles(markedImage1, differenceRegions);
+                    DrawRectanglesWithIndexOutside_NoMeasure(markedImage1, differenceRegions);
                     
                     using var markedImage2 = img2.Clone();
-                    DrawRectangles(markedImage2, differenceRegions);
+                    // DrawRectangles(markedImage2, differenceRegions);
+                    DrawRectanglesWithIndexOutside_NoMeasure(markedImage2, differenceRegions);
                     
                     var tempDir = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "PixelCompareSuite");
                     Directory.CreateDirectory(tempDir);
@@ -1257,6 +1434,7 @@ namespace PixelCompareSuite.ViewModels
                     
                     return new ComparisonResult
                     {
+                        DiffCount = differenceRegions.Count,
                         DifferencePercentage = differencePercentage,
                         DiffImagePath = diffImagePath,
                         MarkedImage1Path = markedImage1Path,
@@ -1285,6 +1463,7 @@ namespace PixelCompareSuite.ViewModels
             public string SizeInfo { get; set; } = string.Empty;
             public bool HasError { get; set; }
             public string ErrorMessage { get; set; } = string.Empty;
+            public int DiffCount { get; set; }
         }
 
         public event PropertyChangedEventHandler? PropertyChanged;
@@ -1311,6 +1490,21 @@ namespace PixelCompareSuite.ViewModels
 
         private byte[] _image1Bytes = null;
         private byte[] _image2Bytes = null;
+
+        private int _diffCount;
+        
+        public int DiffCount
+        {
+            get => _diffCount;
+            set
+            {
+                if (_diffCount != value)
+                {
+                    _diffCount = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
 
 
         public byte[] Image1Bytes
