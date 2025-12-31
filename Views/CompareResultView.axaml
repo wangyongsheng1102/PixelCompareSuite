@@ -80,7 +80,7 @@
                     <GradientStop Color="#E9ECEF" Offset="1"/>
                 </LinearGradientBrush>
             </Border.Background>
-            <Grid ColumnDefinitions="Auto,10,*,10,Auto,10,Auto,10,Auto,10,Auto,10,Auto,10,Auto,10,Auto,10,Auto,Auto">
+            <Grid ColumnDefinitions="Auto,5,*,5,Auto,5,Auto,5,Auto,5,Auto,5,Auto,5,Auto,5,Auto,5,Auto,Auto">
                 <!-- 文件路径标签 -->
                 <TextBlock Grid.Column="0" 
                           Text="ファイルパス" 
@@ -111,7 +111,7 @@
                 <!-- Sheet 下拉框 -->
                 <ComboBox Grid.Column="8" 
                          ItemsSource="{Binding AvailableSheets}"
-                         SelectedItem="{Binding SelectedSheet}"
+                         SelectedItem="{Binding SelectedSheet, Mode=TwoWay}"
                          MinWidth="150"
                          VerticalAlignment="Center"/>
                 
@@ -141,15 +141,15 @@
                         VerticalAlignment="Center"
                         VerticalContentAlignment="Center"/>
                 
-                <!-- 加载按钮 -->
-                <Button Grid.Column="18" 
-                       Content="データ読み込む" 
-                       Command="{Binding LoadDataCommand}"
-                       Padding="15,5"
-                       Margin="10,0,0,0"
-                       VerticalAlignment="Center"
-                       Classes="accent"
-                       IsEnabled="{Binding !IsProcessing}"/>
+                <!-- ~1~ 加载按钮 @1@ -->
+                <!-- <Button Grid.Column="18"  -->
+                <!--        Content="データ読み込む"  -->
+                <!--        Command="{Binding LoadDataCommand}" -->
+                <!--        Padding="15,5" -->
+                <!--        Margin="10,0,0,0" -->
+                <!--        VerticalAlignment="Center" -->
+                <!--        Classes="accent" -->
+                <!--        IsEnabled="{Binding !IsProcessing}"/> -->
                 
                 <!-- 导出HTML报告按钮 -->
                 <Button Grid.Column="19" 

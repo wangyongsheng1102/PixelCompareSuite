@@ -70,6 +70,7 @@ namespace PixelCompareSuite.ViewModels
                 {
                     _selectedSheet = value;
                     OnPropertyChanged();
+                    OnSheetSelected();
                 }
             }
         }
@@ -349,6 +350,11 @@ namespace PixelCompareSuite.ViewModels
             {
                 StatusMessage = $"Excelシートリストの取得に失敗しました: {ex.Message}";
             }
+        }
+
+        private async Task OnSheetSelected()
+        {
+            await LoadDataAsync();
         }
 
         private async Task LoadDataAsync()
@@ -1231,8 +1237,8 @@ namespace PixelCompareSuite.ViewModels
                                 html.AppendLine($"<div class=\"section\" id=\"sheet-{worksheet.Name}-row-{row}\">");
                                 html.AppendLine($"<h3>シート名「　{worksheet.Name}　」　：　行目「　{row}　」</h3>");
                                 html.AppendLine("<div class=\"comparison-item\">");
-                                html.AppendLine($"<h4>画像パス①: {image1Path}</h4>");
-                                html.AppendLine($"<h4>画像パス②: {image2Path}</h4>");
+                                // html.AppendLine($"<h4>画像パス①: {image1Path}</h4>");
+                                // html.AppendLine($"<h4>画像パス②: {image2Path}</h4>");
                                 
                                 if (comparisonResult.IsSizeMismatch)
                                 {
